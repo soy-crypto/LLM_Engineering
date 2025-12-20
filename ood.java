@@ -38,3 +38,19 @@ class Motorcycle extends Vehicle
     }
 
 }
+
+
+class ParkingSpot
+{
+    private int id;
+    private int size;
+    private double rate;
+
+    public ParkingSpot(int id, int size, double rate)
+    {
+        this.id = id;
+        this.size = size;
+        this.rate = rate;
+    }
+
+}
