@@ -1,0 +1,5 @@
+Hello, my name is
+Explain what a GPU is in one sentence
+Write a haiku about robots
+Summarize reinforcement learning in simple terms
+Give me a short recipe for fried rice
