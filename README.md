@@ -23,7 +23,7 @@ Container disk: 200GB Volume disk 200GB Volume mount.
 How to use ssh and sftp
 step1:
 SSH key genarate:
-ssh-keygen -t ed25519 -C "tzhu2@scu.edu"
+ssh-keygen -t ed25519 -C "email@xxx.xxx"
 step2: rename ed25519 to ed25519.ppk (OS is windows)
 step3: open SCP, host: 157.157.221.29 port: 30527 username: root. no need password, as we have private key in our machine.
 step4: connect the host.
