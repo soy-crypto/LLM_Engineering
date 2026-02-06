@@ -69,7 +69,7 @@ def get_model(model_name: str, device: str) -> Tuple[PreTrainedModel, torch.dtyp
     else:
         torch_dtype = torch.float32
 
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch_dtype).to(device)
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch_dtype,low_cpu_mem_usage=True).to(device)
     model.eval()
 
     #return
