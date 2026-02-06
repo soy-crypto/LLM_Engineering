@@ -117,6 +117,7 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
     return elapsed, output_tokens, new_tokens
 
 
+
 def main():
     args = get_args()
     device = get_device()
@@ -180,6 +181,7 @@ def main():
 
     #return
     return
+
 
 
 if __name__ == "__main__":
