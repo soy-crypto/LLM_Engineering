@@ -189,3 +189,16 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(f"errors: {e}")
+
+
+
+ssh root@213.173.102.232 -p 28573 -i ~/.ssh/id_ed25519
+python3 -m pip install -U mpi4py nvtx
+export TRTLLM_DISABLE_MPI=1
+bash -lc 'python3 -c "import tensorrt_llm; print(\"trtllm\", tensorrt_llm.__version__)"'
+
+env \
+MPI4PY_RC_INITIALIZE=0 \
+MPI4PY_RC_FINALIZE=0 \
+TRTLLM_DISABLE_MPI=1 \
+python3 -c "import tensorrt_llm; print('trtllm', tensorrt_llm.__version__)"
