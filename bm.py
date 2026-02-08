@@ -14,7 +14,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--batch_size",     type=str,   default="1, 2, 4")
     parser.add_argument("--max_new_tokens", type=int,   default=64)
     parser.add_argument("--warmup",         type=int,   default=1)
-    parser.add_argument("--runs",           type=int,   default=5000)
+    parser.add_argument("--runs",           type=int,   default=50)
     parser.add_argument("--do_sample",      action="store_true")
     parser.add_argument("--seed",           type=int,   default=42)
     parser.add_argument("--temperature",    type=float, default=1.0)
