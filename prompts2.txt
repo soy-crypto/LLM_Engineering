@@ -1,0 +1,1 @@
+Explain what a GPU does in detail. Include its role in parallel computing, deep learning, graphics rendering, and how it differs from a CPU. Provide examples of common workloads where GPUs are particularly effective.
