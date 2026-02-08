@@ -1,83 +1,101 @@
-import time
+# sweep_input_len.py
+import os, time, math
 import torch
 from transformers import AutoTokenizer
-from tensorrt_llm.runtime import ModelRunner, SamplingConfig
+from tensorrt_llm.runtime import ModelRunner
+from tensorrt_llm.runtime import SamplingConfig
 
-ENGINE_DIR = "/workspace/trtllm_engine_tinyllama_1024"
-MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+ENGINE_DIR = os.environ.get("ENGINE_DIR", "/workspace/trtllm_engine_tinyllama")
+MODEL_NAME = os.environ.get("MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
 
-def now(): return time.perf_counter()
+# 你要扫的 reps（reps 越大，input 越长）
+REPS_LIST = [1, 4, 16, 64, 128]
 
-def run_one(runner, tok, eos_id, pad_id, prompt, max_new_tokens=128):
-    input_ids = tok(prompt, return_tensors="pt").input_ids.cuda()
-    in_len = input_ids.shape[-1]
+MAX_NEW_TOKENS = int(os.environ.get("MAX_NEW_TOKENS", "128"))
+WARMUP = int(os.environ.get("WARMUP", "2"))      # 每个点先跑几次不计入
+MEASURE = int(os.environ.get("MEASURE", "5"))    # 每个点记录几次取 median
 
-    scfg = SamplingConfig(end_id=eos_id, pad_id=pad_id, max_new_tokens=max_new_tokens,
-                          temperature=0.0, top_p=1.0)
-    
-    ENGINE_LIMIT = 1024  # 你现在这个 engine 的 max_input_len / max_seq_len
+BASE_TEXT = "Explain GPUs in one sentence.\n"
 
-    in_len = input_ids.shape[-1]
-    if in_len > ENGINE_LIMIT:
-        print(f"SKIP: input_len={in_len} > engine_limit={ENGINE_LIMIT}")
-        return in_len, 0, float("nan"), float("nan"), float("nan")
+def median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    if n == 0:
+        return float("nan")
+    if n % 2 == 1:
+        return xs[n//2]
+    return 0.5 * (xs[n//2 - 1] + xs[n//2])
 
+def build_input_ids(tok, reps: int, device="cuda"):
+    # 用 chat template 更接近真实聊天
+    msgs = [
+        {"role":"system", "content":"You are a helpful assistant."},
+        {"role":"user", "content": BASE_TEXT * reps}
+    ]
+    prompt = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+    ids = tok(prompt, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
+    return ids
 
-    # warmup
-    _ = runner.generate(input_ids, sampling_config=scfg)
-    torch.cuda.synchronize()
+def run_once(runner, input_ids, eos_id, pad_id):
+    scfg = SamplingConfig(
+        end_id=eos_id,
+        pad_id=pad_id,
+        max_new_tokens=MAX_NEW_TOKENS,
+        # 稳定：greedy
+        temperature=0.0,
+        top_p=1.0
+    )
 
-    # TTFT (1 token)
-    scfg1 = SamplingConfig(end_id=eos_id, pad_id=pad_id, max_new_tokens=1,
-                           temperature=0.0, top_p=1.0)
-    torch.cuda.synchronize()
-    t0 = now()
-    _ = runner.generate(input_ids, sampling_config=scfg1)
-    torch.cuda.synchronize()
-    t1 = now()
-    ttft = t1 - t0
+    # TTFT：让它只生成 1 token
+    t0 = time.time()
+    _ = runner.generate(input_ids, sampling_config=SamplingConfig(
+        end_id=eos_id, pad_id=pad_id, max_new_tokens=1, temperature=0.0, top_p=1.0
+    ))
+    ttft = time.time() - t0
 
-    # full
-    torch.cuda.synchronize()
-    t2 = now()
+    # Total：生成 MAX_NEW_TOKENS
+    t1 = time.time()
     out = runner.generate(input_ids, sampling_config=scfg)
-    torch.cuda.synchronize()
-    t3 = now()
+    total = time.time() - t1
 
-    total = t3 - t2
-    new_tokens = out.shape[-1] - in_len
-    decode_time = max(1e-9, total - ttft)
-    decode_tps = (new_tokens - 1) / decode_time if new_tokens > 1 else 0.0
-
-    return in_len, new_tokens, ttft, total, decode_tps
+    # 估算 decode tok/s： (new_tokens-1)/(total-ttft) 近似
+    # 这里用 total / MAX_NEW_TOKENS 也行，但 TTFT 单独测更直观
+    decode_tps = (MAX_NEW_TOKENS - 1) / max(1e-9, (total - ttft))
+    return ttft, total, decode_tps
 
 def main():
-    tok = AutoTokenizer.from_pretrained(MODEL, use_fast=False)
+    tok = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=False)
     eos_id = tok.eos_token_id
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else eos_id
 
-    runner = ModelRunner.from_dir(engine_dir=ENGINE_DIR, rank=0, debug_mode=False)
+    runner = ModelRunner.from_dir(ENGINE_DIR, rank=0)
 
-    base_msgs = [
-        {"role":"system","content":"You are helpful."},
-        {"role":"user","content":"Explain GPUs in one sentence."},
-    ]
+    # engine limit：从环境变量读（你之前已经在脚本里做过）
+    engine_limit = int(os.environ.get("ENGINE_LIMIT", "1024"))
 
-    # repeat user content to grow prompt
-    reps_list = [1, 4, 16, 64, 128]  # 你可以再加 256/512
-    print("reps,input_len,ttft_s,total_s,decode_tps")
+    print("reps,input_len,status,ttft_s,total_s,decode_tps")
 
-    for reps in reps_list:
-        msgs = [
-            {"role":"system","content":"You are helpful."},
-            {"role":"user","content":("Explain GPUs in one sentence. " * reps).strip()},
-        ]
-        prompt = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+    for reps in REPS_LIST:
+        input_ids = build_input_ids(tok, reps)
+        in_len = int(input_ids.shape[1])
 
-        in_len, new_tokens, ttft, total, decode_tps = run_one(
-            runner, tok, eos_id, pad_id, prompt, max_new_tokens=128
-        )
-        print(f"{reps},{in_len},{ttft:.6f},{total:.6f},{decode_tps:.2f}")
+        if in_len > engine_limit:
+            print(f"{reps},{in_len},SKIP,nan,nan,nan")
+            continue
+
+        # warm-up
+        for _ in range(WARMUP):
+            _ = runner.generate(input_ids, sampling_config=SamplingConfig(
+                end_id=eos_id, pad_id=pad_id, max_new_tokens=8, temperature=0.0, top_p=1.0
+            ))
+
+        # measure
+        ttfts, totals, tps = [], [], []
+        for _ in range(MEASURE):
+            ttft, total, decode_tps = run_once(runner, input_ids, eos_id, pad_id)
+            ttfts.append(ttft); totals.append(total); tps.append(decode_tps)
+
+        print(f"{reps},{in_len},OK,{median(ttfts):.6f},{median(totals):.6f},{median(tps):.2f}")
 
 if __name__ == "__main__":
     main()
