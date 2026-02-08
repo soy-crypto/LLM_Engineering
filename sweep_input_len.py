@@ -93,7 +93,7 @@ def main():
 
     print(f"# engine_limit={engine_limit}")
 
-    
+
     print("reps,input_len,status,ttft_s,total_s,decode_tps")
 
     for reps in REPS_LIST:
@@ -104,19 +104,37 @@ def main():
             print(f"{reps},{in_len},SKIP,nan,nan,nan")
             continue
 
-        # warm-up
-        for _ in range(WARMUP):
-            _ = runner.generate(input_ids, sampling_config=SamplingConfig(
-                end_id=eos_id, pad_id=pad_id, max_new_tokens=8, temperature=0.0, top_p=1.0
-            ))
+        try:
+            # warm-up
+            for _ in range(WARMUP):
+                _ = runner.generate(
+                    input_ids,
+                    sampling_config=SamplingConfig(
+                        end_id=eos_id, pad_id=pad_id,
+                        max_new_tokens=8, temperature=0.0, top_p=1.0
+                    )
+                )
 
-        # measure
-        ttfts, totals, tps = [], [], []
-        for _ in range(MEASURE):
-            ttft, total, decode_tps = run_once(runner, input_ids, eos_id, pad_id)
-            ttfts.append(ttft); totals.append(total); tps.append(decode_tps)
+            # measure
+            ttfts, totals, tps = [], [], []
+            for _ in range(MEASURE):
+                ttft, total, decode_tps = run_once(runner, input_ids, eos_id, pad_id)
+                ttfts.append(ttft); totals.append(total); tps.append(decode_tps)
 
-        print(f"{reps},{in_len},OK,{median(ttfts):.6f},{median(totals):.6f},{median(tps):.2f}")
+            print(f"{reps},{in_len},OK,{median(ttfts):.6f},{median(totals):.6f},{median(tps):.2f}")
+
+        except RuntimeError as e:
+            msg = str(e)
+            # 解析出 runtime 真正的 limit，比如 "(512)"
+            m = re.search(r"specified limit \((\d+)\)", msg)
+            if m:
+                engine_limit = int(m.group(1))
+                # 现在知道真实上限了，这个点应该 SKIP
+                print(f"{reps},{in_len},SKIP,nan,nan,nan")
+                continue
+            raise
+
+            print(f"{reps},{in_len},OK,{median(ttfts):.6f},{median(totals):.6f},{median(tps):.2f}")
 
 if __name__ == "__main__":
     main()
