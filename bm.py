@@ -2,6 +2,7 @@ import argparse
 import torch
 import time
 import csv
+import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedModel, PreTrainedTokenizerBase
 from typing import List, Dict, Any, Tuple, Optional
 
