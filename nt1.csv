@@ -1,0 +1,6 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,gpt2,torch.bfloat16,cuda,4,0.004397,0.004371,9151.093715,2745.328114
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,gpt2,torch.bfloat16,cuda,4,0.004365,0.013730,3787.332109,1747.999435
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,gpt2,torch.bfloat16,cuda,4,0.004393,0.004423,9043.481390,2713.044417
