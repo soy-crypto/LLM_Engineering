@@ -1,0 +1,15 @@
+add_newline = false
+format = "$directory$git_branch$character"
+
+[directory]
+style = "blue"
+
+[git_branch]
+symbol = ""
+style = "purple"
+format = " [$branch]"
+
+[character]
+success_symbol = "$ "
+error_symbol = "$ "
+
