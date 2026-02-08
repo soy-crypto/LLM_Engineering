@@ -1,0 +1,2 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,gpt2,torch.bfloat16,cuda,4,0.004104,0.194806,1457.862323,1314.129418
