@@ -14,6 +14,14 @@ def run_one(runner, tok, eos_id, pad_id, prompt, max_new_tokens=128):
 
     scfg = SamplingConfig(end_id=eos_id, pad_id=pad_id, max_new_tokens=max_new_tokens,
                           temperature=0.0, top_p=1.0)
+    
+    ENGINE_LIMIT = 1024  # 你现在这个 engine 的 max_input_len / max_seq_len
+
+    in_len = input_ids.shape[-1]
+    if in_len > ENGINE_LIMIT:
+        print(f"SKIP: input_len={in_len} > engine_limit={ENGINE_LIMIT}")
+        return in_len, 0, float("nan"), float("nan"), float("nan")
+
 
     # warmup
     _ = runner.generate(input_ids, sampling_config=scfg)
