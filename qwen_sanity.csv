@@ -1,0 +1,2 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.010500,0.142661,147.201849,112.153790
