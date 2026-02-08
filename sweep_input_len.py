@@ -71,8 +71,29 @@ def main():
     runner = ModelRunner.from_dir(ENGINE_DIR, rank=0)
 
     # engine limit：从环境变量读（你之前已经在脚本里做过）
-    engine_limit = int(os.environ.get("ENGINE_LIMIT", "1024"))
+    # 尽量从 engine/config 自动拿上限，避免你设错
+    engine_limit = None
+    for attr in ["max_input_len", "max_seq_len", "max_sequence_length"]:
+        if hasattr(runner, attr):
+            engine_limit = int(getattr(runner, attr))
+            break
 
+    # 有的版本把 config 放在 runner.config / runner.model_config
+    if engine_limit is None:
+        cfg = getattr(runner, "config", None) or getattr(runner, "model_config", None)
+        if cfg is not None:
+            for k in ["max_input_len", "max_seq_len", "max_sequence_length"]:
+                v = getattr(cfg, k, None)
+                if v is not None:
+                    engine_limit = int(v)
+                    break
+
+    if engine_limit is None:
+        engine_limit = int(os.environ.get("ENGINE_LIMIT", "512"))
+
+    print(f"# engine_limit={engine_limit}")
+
+    
     print("reps,input_len,status,ttft_s,total_s,decode_tps")
 
     for reps in REPS_LIST:
