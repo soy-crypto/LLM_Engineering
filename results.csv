@@ -8,3 +8,8 @@ HF,gpt2,torch.bfloat16,cuda,1,0.002930,0.163651,421.627802,391.075063
 HF,gpt2,torch.bfloat16,cuda,2,0.003330,0.186297,783.694578,708.545783
 HF,gpt2,torch.bfloat16,cuda,4,0.003357,0.187599,1556.511503,1407.256975
 HF,gpt2,torch.bfloat16,cuda,8,0.003286,0.185349,3150.820385,2848.686923
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,gpt2,torch.bfloat16,cuda,1,0.002879,0.160402,430.169966,398.998229
+HF,gpt2,torch.bfloat16,cuda,2,0.003272,0.182254,801.080325,724.264403
+HF,gpt2,torch.bfloat16,cuda,4,0.003297,0.183218,1593.731836,1440.908235
+HF,gpt2,torch.bfloat16,cuda,8,0.003276,0.183544,3181.792898,2876.689470
