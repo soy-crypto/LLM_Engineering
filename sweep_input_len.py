@@ -3,7 +3,7 @@ import torch
 from transformers import AutoTokenizer
 from tensorrt_llm.runtime import ModelRunner, SamplingConfig
 
-ENGINE_DIR = "/workspace/trtllm_engine_tinyllama"
+ENGINE_DIR = "/workspace/trtllm_engine_tinyllama_1024"
 MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
 def now(): return time.perf_counter()
