@@ -106,8 +106,18 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
     start = time.perf_counter()
     
     #outputs
+    before_mem = None
+    if device == "cuda" and measure_mem:
+        before_mem = torch.cuda.memory_allocated()
+        
     outputs = model.generate(**params)
-
+    
+    after_mem = None
+    if device == "cuda" and measure_mem:
+        after_mem = torch.cuda.memory_allocated()
+    
+    kv_delta = after_mem - before_mem
+    
     #end time
     if device == "cuda":
         torch.cuda.synchronize()
@@ -119,12 +129,9 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
     output_tokens = int(outputs.numel())
     prompt_tokens = int(params["attention_mask"].sum().item())
     new_tokens = max(output_tokens - prompt_tokens, 0)
-    peak_mem = None
-    if device == "cuda" and measure_mem:
-        peak_mem = torch.cuda.max_memory_allocated()
 
     #return
-    return elapsed, output_tokens, new_tokens, peak_mem
+    return elapsed, output_tokens, new_tokens, kv_delta
 
 
 def main():
@@ -143,7 +150,7 @@ def main():
 
     with open(args.out_csv, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["backend", "model", "dtype", "device", "batch_size", "avg_ttft", "avg_latency", "tokps_total", "tokps_new", "peak_mem_mb"])
+        writer.writerow(["backend", "model", "dtype", "device", "batch_size", "avg_ttft", "avg_latency", "tokps_total", "tokps_new", "avg_kv_delta_mb"])
         for size in batch_sizes:
             #build parameters & warmup
             parameters = get_parameters(size, prompts, device, tokenizer, args)
@@ -152,39 +159,39 @@ def main():
 
             #runs
             elapsed:       List[float] = []
-            output_tokens: List[int] = []
-            new_tokens:    List[int] = []
+            output_tokens: List[int]   = []
+            new_tokens:    List[int]   = []
             ttft:          List[float] = []
-            peak_mems:     List[int] = []
+            kv_deltas:     List[int]   = []
             for _ in range(args.runs):
                 #TTFT
                 tt, _, _, _ = measure(inference_model, parameters, device, max_new_token_override=1, measure_mem=False)
                 ttft.append(tt)
 
                 #Full throughput
-                e, t, n, peak_mem = measure(inference_model, parameters, device, measure_mem=True)
+                e, t, n, kv_delta = measure(inference_model, parameters, device, measure_mem=True)
                 elapsed.append(e)
                 output_tokens.append(t)
                 new_tokens.append(n)
-                peak_mems.append(peak_mem)
+                kv_deltas.append(kv_delta)
 
             #avg
             avg_ttft = sum(ttft) / len(ttft)
             avg_el = sum(elapsed) / len(elapsed)
             avg_ot = sum(output_tokens) / len(output_tokens)
             avg_nt = sum(new_tokens) / len(new_tokens)
-            avg_peak_mem = sum(peak_mems) / len(peak_mems)
-            avg_peak_mem_mb = avg_peak_mem / (1024 ** 2)
+            avg_kv_delta = sum(kv_deltas) / len(kv_deltas)
+            avg_kv_delta_mb = avg_kv_delta / (1024 ** 2)
 
             #rate
             ot_ps = avg_ot / avg_el
             nt_ps = avg_nt / avg_el
 
             #print
-            print(f"[{size}] avg_ttft: {avg_ttft:.4f} | avg_latency: {avg_el:.4f} | tokens/s(total): {ot_ps:.4f} | tokens/s(new): {nt_ps:.4f} | peak_mem(MB) : {avg_peak_mem_mb:.1f}")
+            print(f"[{size}] avg_ttft: {avg_ttft:.4f} | avg_latency: {avg_el:.4f} | tokens/s(total): {ot_ps:.4f} | tokens/s(new): {nt_ps:.4f} | kv_delta(MB) : {avg_kv_delta_mb:.1f}")
 
             #write csv
-            writer.writerow([args.backend, args.model, str(torch_dtype), device, size, f"{avg_ttft:.6f}", f"{avg_el:.6f}", f"{ot_ps:.6f}", f"{nt_ps:.6f}", f"{avg_peak_mem_mb:.2f}"])
+            writer.writerow([args.backend, args.model, str(torch_dtype), device, size, f"{avg_ttft:.6f}", f"{avg_el:.6f}", f"{ot_ps:.6f}", f"{nt_ps:.6f}", f"{avg_kv_delta_mb:.2f}"])
 
     pass
 
