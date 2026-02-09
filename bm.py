@@ -91,8 +91,7 @@ def get_parameters(size: int, prompts: List[str], device: str, tokenizer: PreTra
 
 
 @torch.no_grad()
-def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max_new_token_override: Optional[int] = None, measure_mem: bool = False) 
-      -> Tuple[float, int, int, Optional[int]]:
+def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max_new_token_override: Optional[int] = None, measure_mem: bool = False) -> Tuple[float, int, int, Optional[int]]:
     #update parameters
     params = dict(parameters)
     if max_new_token_override is not None:
