@@ -91,7 +91,7 @@ def get_parameters(size: int, prompts: List[str], device: str, tokenizer: PreTra
 
 
 @torch.no_grad()
-def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max_new_token_override: Optional[int] = None, measure_mem: bool = False) -> Tuple[float, int, int, Optional[int]]:
+def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max_new_token_override: Optional[int] = None, measure_kv: bool = False) -> Tuple[float, int, int, Optional[int]]:
     #update parameters
     params = dict(parameters)
     if max_new_token_override is not None:
@@ -128,7 +128,7 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
 
     #metric
     elapsed = end - start
-    output_tokens = int(outputs.numel())
+    output_tokens = int(sequences.numel())
     prompt_tokens = int(params["attention_mask"].sum().item())
     new_tokens = max(output_tokens - prompt_tokens, 0)
     
@@ -181,11 +181,11 @@ def main():
             kv_mbs:     List[int]   = []
             for _ in range(args.runs):
                 #TTFT
-                tt, _, _, _ = measure(inference_model, parameters, device, max_new_token_override=1, measure_mem=False)
+                tt, _, _, _ = measure(inference_model, parameters, device, max_new_token_override=1, measure_kv=False)
                 ttft.append(tt)
 
                 #Full throughput
-                e, t, n, kv_mb = measure(inference_model, parameters, device, measure_mem=True)
+                e, t, n, kv_mb = measure(inference_model, parameters, device, measure_kv=True)
                 elapsed.append(e)
                 output_tokens.append(t)
                 new_tokens.append(n)
