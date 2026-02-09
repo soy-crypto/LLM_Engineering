@@ -10,3 +10,9 @@ backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
 HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009765,0.536344,197.634199,119.326309
 backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
 HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009454,0.529834,134.004354,120.792657
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009727,0.582058,121.980982,109.954688
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009775,0.573849,184.717519,111.527559
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009681,0.544545,312.187458,117.529396
