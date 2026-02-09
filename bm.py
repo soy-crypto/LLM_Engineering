@@ -96,42 +96,58 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
     params = dict(parameters)
     if max_new_token_override is not None:
         params["max_new_tokens"] = max_new_token_override
+    
+    #get kv
+    if measure_kv:
+        params["use_cache"] = True
+        params["return_dict_in_generate"] = True
+        params["output_attentions"] = False
+        params["output_hidden_states"] = False
 
     #start time
     if device == "cuda":
         torch.cuda.synchronize()
-        if measure_mem:
-            torch.cuda.reset_peak_memory_stats()
 
     start = time.perf_counter()
     
     #outputs
-    before_mem = None
-    if device == "cuda" and measure_mem:
-        before_mem = torch.cuda.memory_allocated()
-        
+    kv_delta = None
     outputs = model.generate(**params)
-    
-    after_mem = None
-    if device == "cuda" and measure_mem:
-        after_mem = torch.cuda.memory_allocated()
-    
-    kv_delta = after_mem - before_mem
     
     #end time
     if device == "cuda":
         torch.cuda.synchronize()
 
     end = time.perf_counter()
+    
+    #GenerateDecoderOnlyOutput（measure_kv=True）
+    if measure_kv:
+        sequences = outputs.sequences
+    else:
+        sequences = outputs
 
     #metric
     elapsed = end - start
     output_tokens = int(outputs.numel())
     prompt_tokens = int(params["attention_mask"].sum().item())
     new_tokens = max(output_tokens - prompt_tokens, 0)
+    
+    #kv_mb
+    kv_mb = None
+    if measure_kv:
+        past = outputs.past_key_values  # list of layers
+        kv_bytes = 0
+
+        # past[layer] = (k, v)
+        for layer in past:
+            k, v = layer
+            kv_bytes += k.numel() * k.element_size()
+            kv_bytes += v.numel() * v.element_size()
+
+        kv_mb = kv_bytes / (1024 ** 2)
 
     #return
-    return elapsed, output_tokens, new_tokens, kv_delta
+    return elapsed, output_tokens, new_tokens, kv_mb
 
 
 def main():
@@ -150,7 +166,7 @@ def main():
 
     with open(args.out_csv, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["backend", "model", "dtype", "device", "batch_size", "avg_ttft", "avg_latency", "tokps_total", "tokps_new", "avg_kv_delta_mb"])
+        writer.writerow(["backend", "model", "dtype", "device", "batch_size", "avg_ttft", "avg_latency", "tokps_total", "tokps_new", "avg_kv_mbs"])
         for size in batch_sizes:
             #build parameters & warmup
             parameters = get_parameters(size, prompts, device, tokenizer, args)
@@ -162,36 +178,35 @@ def main():
             output_tokens: List[int]   = []
             new_tokens:    List[int]   = []
             ttft:          List[float] = []
-            kv_deltas:     List[int]   = []
+            kv_mbs:     List[int]   = []
             for _ in range(args.runs):
                 #TTFT
                 tt, _, _, _ = measure(inference_model, parameters, device, max_new_token_override=1, measure_mem=False)
                 ttft.append(tt)
 
                 #Full throughput
-                e, t, n, kv_delta = measure(inference_model, parameters, device, measure_mem=True)
+                e, t, n, kv_mb = measure(inference_model, parameters, device, measure_mem=True)
                 elapsed.append(e)
                 output_tokens.append(t)
                 new_tokens.append(n)
-                kv_deltas.append(kv_delta)
+                kv_mbs.append(kv_mb)
 
             #avg
             avg_ttft = sum(ttft) / len(ttft)
             avg_el = sum(elapsed) / len(elapsed)
             avg_ot = sum(output_tokens) / len(output_tokens)
             avg_nt = sum(new_tokens) / len(new_tokens)
-            avg_kv_delta = sum(kv_deltas) / len(kv_deltas)
-            avg_kv_delta_mb = avg_kv_delta / (1024 ** 2)
+            avg_kv_mbs = sum(kv_mbs) / len(kv_mbs)
 
             #rate
             ot_ps = avg_ot / avg_el
             nt_ps = avg_nt / avg_el
 
             #print
-            print(f"[{size}] avg_ttft: {avg_ttft:.4f} | avg_latency: {avg_el:.4f} | tokens/s(total): {ot_ps:.4f} | tokens/s(new): {nt_ps:.4f} | kv_delta(MB) : {avg_kv_delta_mb:.1f}")
+            print(f"[{size}] avg_ttft: {avg_ttft:.4f} | avg_latency: {avg_el:.4f} | tokens/s(total): {ot_ps:.4f} | tokens/s(new): {nt_ps:.4f} | kv_delta(MB) : {avg_kv_mbs:.1f}")
 
             #write csv
-            writer.writerow([args.backend, args.model, str(torch_dtype), device, size, f"{avg_ttft:.6f}", f"{avg_el:.6f}", f"{ot_ps:.6f}", f"{nt_ps:.6f}", f"{avg_kv_delta_mb:.2f}"])
+            writer.writerow([args.backend, args.model, str(torch_dtype), device, size, f"{avg_ttft:.6f}", f"{avg_el:.6f}", f"{ot_ps:.6f}", f"{nt_ps:.6f}", f"{avg_kv_mbs:.2f}"])
 
     pass
 
