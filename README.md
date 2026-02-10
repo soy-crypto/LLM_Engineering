@@ -266,29 +266,31 @@ trtllm-build --help | head
 nvcc --version
 
 
-If both work, we go straight to engine build.
+Next (simple): clone TensorRT-LLM repo (just for examples)
+cd /workspace
+apt-get update && apt-get install -y git git-lfs
+git lfs install
+git clone https://github.com/NVIDIA/TensorRT-LLM.git
+cd TensorRT-LLM
+git submodule update --init --recursive
+git lfs pull
 
-Then we do the exact apples-to-apples benchmark
 
-We’ll use TinyLlama first (fast), matching your earlier settings:
+Quick check:
 
-batch=32
+ls -lah examples | head
 
-max_output_len=256
-
-max_input_len=1024
-
-Step A — download model
+Then we run the exact engine build flow (TinyLlama first)
+1) Download model
 python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TinyLlama/TinyLlama-1.1B-Chat-v1.0', local_dir='/workspace/models/tinyllama', local_dir_use_symlinks=False)"
 
-Step B — convert checkpoint
-python3 -c "import os; print('ready')"
-python3 /workspace/TensorRT-LLM/examples/llama/convert_checkpoint.py \
+2) Convert checkpoint
+python3 examples/llama/convert_checkpoint.py \
   --model_dir /workspace/models/tinyllama \
   --output_dir /workspace/trt_ckpt_tinyllama \
   --dtype float16
 
-Step C — build engine
+3) Build engine
 trtllm-build \
   --checkpoint_dir /workspace/trt_ckpt_tinyllama \
   --output_dir /workspace/trt_engine_tinyllama_b32_o256 \
@@ -296,21 +298,20 @@ trtllm-build \
   --max_input_len 1024 \
   --max_output_len 256
 
-Step D — run TRT-LLM benchmark
-python3 /workspace/TensorRT-LLM/examples/run.py \
+4) Benchmark
+python3 examples/run.py \
   --engine_dir /workspace/trt_engine_tinyllama_b32_o256 \
   --batch_size 32 \
   --max_output_len 256
 
-What I need from you now
+If you want ultra-minimal right now
 
-Paste output of:
+Run only this first and paste output:
 
-ls -lah /workspace/TensorRT-LLM/examples/llama/convert_checkpoint.py 2>/dev/null || echo "NO_CONVERTER"
+python3 -c "import tensorrt_llm; import inspect; print(tensorrt_llm.__file__)"
 
 
-If it says NO_CONVERTER, I’ll give you the correct path for 0.11.0 (it moved between versions). If it exists, run the steps above and paste the benchmark output line(s).
-
+But you don’t need it — cloning repo is the cleanest path.
 
 
 
