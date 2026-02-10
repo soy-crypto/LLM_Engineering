@@ -245,51 +245,12 @@ python bench_vllm.py
 
 ```
 
-
-
 #########################################################
-1) Install build deps
-apt-get update && apt-get install -y \
-  git git-lfs build-essential cmake ninja-build \
-  python3-dev python3-pip \
-  libopenmpi-dev openmpi-bin \
-  wget curl pkg-config
+1) Basic pip install (fast path)
 python3 -m pip install -U pip setuptools wheel
-
-2) Confirm NVIDIA libs exist (critical)
-
-You need CUDA + TensorRT available in the container.
-
-nvidia-smi
-python3 -c "import torch; print(torch.__version__)"
-python3 -c "import tensorrt as trt; print(trt.__version__)"
+python3 -m pip install tensorrt_llm
 
 
-If import tensorrt fails, you can’t build TRT-LLM properly in this container (you’d need a base image that includes TensorRT).
+Verify:
 
-3) Clone TensorRT-LLM source
-cd /workspace
-git clone https://github.com/NVIDIA/TensorRT-LLM.git
-cd TensorRT-LLM
-git lfs install
-git submodule update --init --recursive
-git lfs pull
-
-4) Build wheel from source
-
-TensorRT-LLM provides a wheel builder script:
-
-python3 scripts/build_wheel.py
-
-
-Then install the wheel (path may vary; list it):
-
-ls -lah build/*.whl
-pip install build/*.whl
-
-5) Verify
 python3 -c "import tensorrt_llm; print('tensorrt_llm OK')"
-
-
-This follows NVIDIA’s build-from-source approach, just without Docker.
-(If you want, I can also give you the exact build flags to speed up compilation on 4090.)
