@@ -1,0 +1,14 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.437002,1.161617,146.347681,110.191195,1.98
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,2,0.408860,1.191453,285.365875,214.863718,3.96
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,4,0.433606,1.209522,562.205496,423.307667,7.92
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,8,0.405190,1.202730,1130.761231,851.396691,15.84
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,16,0.409079,1.233715,2204.722971,1660.026707,31.69
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,32,0.384877,1.200025,4533.237865,3413.261451,63.38
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,32,0.435959,2.560717,3723.956322,3199.103417,111.38
