@@ -1,6 +1,0 @@
-backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
-backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
-backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
-HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009572,0.009632,4464.136457,103.817127,0.49
-backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
-HF,Qwen/Qwen2.5-0.5B-Instruct,torch.bfloat16,cuda,1,0.009009,0.009009,4773.002963,111.000069,0.49

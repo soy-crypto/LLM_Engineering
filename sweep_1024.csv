@@ -1,8 +1,0 @@
-[TensorRT-LLM] TensorRT-LLM version: 0.11.0
-# engine_limit=1024
-reps,input_len,status,ttft_s,total_s,decode_tps
-1,38,OK,0.003859,0.130005,1006.80
-4,65,OK,0.004403,0.130814,1004.72
-16,173,OK,0.004912,0.281868,458.56
-64,605,OK,0.011085,0.341283,384.48
-128,1181,SKIP,nan,nan,nan
