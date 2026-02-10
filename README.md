@@ -1,7 +1,3 @@
-Got it 👍
-Below is **everything consolidated into one clean Markdown document**, ready to paste into **GitHub** (either as `README.md` or split later if you want).
-
-You can copy **exactly this**.
 
 ---
 
@@ -291,23 +287,3 @@ python bench_vllm.py
 ---
 
 ````
-
----
-
-### ✅ What to do next
-1. Paste this into `README.md`
-2. Commit & push:
-```bash
-quicksave
-````
-
-3. Pin the repo on GitHub
-
-If you want next, I can:
-
-* split this into **README + docs/**
-* add **plots**
-* tailor wording for **NVIDIA job descriptions**
-* or structure a **portfolio page**
-
-Just say the word.
