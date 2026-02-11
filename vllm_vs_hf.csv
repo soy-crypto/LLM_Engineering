@@ -1,2 +1,0 @@
-backend,model,dtype,batch,max_new_tokens,avg_ttft,avg_latency,tokps_new
-vLLM,Qwen/Qwen2.5-0.5B-Instruct,bfloat16,32,256,0.013061,0.542123,15110.970596
