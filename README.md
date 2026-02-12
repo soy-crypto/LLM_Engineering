@@ -10,10 +10,10 @@
 ## Environment
 
 ### Hardware
-- **GPU:** NVIDIA RTX 4090 (24GB VRAM)
+- **GPU:** NVIDIA RTX 5090 (24GB VRAM)
 
 ### Container
-- **Image:** `nvcr.io/nvidia/tritonserver:24.07-trtllm-python-py3`
+- **Image:** `nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3`
 - **Disk:** 200GB container + 200GB mounted volume
 
 ### Container Startup
@@ -503,20 +503,28 @@ Large models shift bottleneck from memory bandwidth to compute.
 Paged KV improves performance in both regimes, but magnitude depends on hardware and model scale.
 
 
-
-
-
-
 ##########################TensorRT-LLM##################################
+#Test tensorrt-LLM
+python3 -c "import tensorrt_llm, os; print(os.path.dirname(tensorrt_llm.__file__))"
+
 #Resolve your local HF model directory (no redownload)
 python3 -c "from huggingface_hub import snapshot_download; print(snapshot_download('Qwen/Qwen2.5-7B-Instruct', local_files_only=True))"
 export HF_MODEL_DIR="</path/printed/by/command>"
-
-#Convert HF → TensorRT-LLM checkpoint (Qwen converter)
-python3 -c "import tensorrt_llm, os; print(os.path.dirname(tensorrt_llm.__file__))"
 
 #Set TRTLLM_ROOT
 export TRTLLM_ROOT="/app/tensorrt_llm"
 
 
+#Convert HF → TensorRT-LLM checkpoint (Qwen converter)
+python3 "$TRTLLM_ROOT/examples/models/core/qwen/convert_checkpoint.py" \
+  --model_dir "$HF_MODEL_DIR" \
+  --output_dir "$CKPT_DIR" \
+  --dtype bfloat16
 
+#Run trtllm
+python3 examples/run.py \
+  --engine_dir "$ENGINE_DIR" \
+  --tokenizer_dir "$HF_MODEL_DIR" \
+  --max_output_len 512 \
+  --run_profiling \
+  --input_text $(cat /workspace/prompts_trt_16.txt)
