@@ -501,3 +501,22 @@ RTX 5090 sustains near-linear decode scaling for 7B models up to ~480MB KV.
 Large models shift bottleneck from memory bandwidth to compute.
 
 Paged KV improves performance in both regimes, but magnitude depends on hardware and model scale.
+
+
+
+
+
+
+##########################TensorRT-LLM##################################
+#Resolve your local HF model directory (no redownload)
+python3 -c "from huggingface_hub import snapshot_download; print(snapshot_download('Qwen/Qwen2.5-7B-Instruct', local_files_only=True))"
+export HF_MODEL_DIR="</path/printed/by/command>"
+
+#Convert HF → TensorRT-LLM checkpoint (Qwen converter)
+python3 -c "import tensorrt_llm, os; print(os.path.dirname(tensorrt_llm.__file__))"
+
+#Set TRTLLM_ROOT
+export TRTLLM_ROOT="/app/tensorrt_llm"
+
+
+
