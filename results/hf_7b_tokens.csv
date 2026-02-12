@@ -1,0 +1,10 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-7B-Instruct,torch.bfloat16,cuda,8,0.030465,1.686528,806.390195,607.164382,73.94
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-7B-Instruct,torch.bfloat16,cuda,8,0.030505,3.374719,706.429207,606.865359,129.94
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-7B-Instruct,torch.bfloat16,cuda,8,0.030688,6.860853,645.983776,597.010276,241.94
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-7B-Instruct,torch.bfloat16,cuda,16,0.049863,3.650372,1306.168257,1122.077429,259.88
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_mbs
+HF,Qwen/Qwen2.5-7B-Instruct,torch.bfloat16,cuda,16,0.050012,7.378355,1201.351826,1110.274612,483.88
