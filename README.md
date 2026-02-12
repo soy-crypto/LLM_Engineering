@@ -315,3 +315,189 @@ But you don’t need it — cloning repo is the cleanest path.
 
 
 
+
+
+##################################################################
+🚀 LLM Inference Scaling Study: Architecture × Hardware × Backend
+
+GPU: NVIDIA RTX 5090
+Precision: bfloat16
+Models: Qwen2.5 (0.5B / 1.5B / 7B)
+Backends: HuggingFace (eager) vs vLLM (paged KV)
+
+📌 Objective
+
+This project investigates how:
+
+Transformer architecture
+
+KV cache growth
+
+Batch size
+
+Sequence length
+
+Backend implementation
+
+GPU hardware
+
+interact to determine real-world LLM inference performance.
+
+The goal is to identify:
+
+When inference is compute-bound
+
+When it becomes memory-bandwidth-bound
+
+How paged KV affects performance across regimes
+
+🧠 Phase 1 — Theoretical KV Analysis (ML Layer)
+
+For decoder-only transformers:
+
+𝐾
+𝑉
+_
+𝑀
+𝐵
+/
+𝑡
+𝑜
+𝑘
+𝑒
+𝑛
+=
+2
+×
+𝐿
+×
+ℎ
+𝑖
+𝑑
+𝑑
+𝑒
+𝑛
+_
+𝑠
+𝑖
+𝑧
+𝑒
+×
+𝑏
+𝑦
+𝑡
+𝑒
+𝑠
+/
+1024
+2
+KV_MB/token=2×L×hidden_size×bytes/1024
+2
+7B Model Config
+
+Layers = 28
+
+Hidden size = 3584
+
+bf16 (2 bytes)
+
+𝐾
+𝑉
+≈
+0.3828
+ MB/token (batch=1)
+KV≈0.3828 MB/token (batch=1)
+
+Empirical KV measurements matched linear scaling across:
+
+batch
+
+token length
+
+This validated architectural reasoning.
+
+⚙️ Phase 2 — Batch Scaling
+Qwen 7B — max_new_tokens=128
+Batch	tok/s(new)	KV MB
+1	80	
+2	155	
+4	308	
+8	608	
+16	1118	
+
+Scaling is near-linear up to batch=8, with mild deviation at batch=16.
+
+This indicates:
+
+Increasing compute pressure
+
+Beginning of scaling curvature
+
+📈 Phase 3 — Token Scaling (Decode Behavior)
+Qwen 7B — batch=8
+Tokens	tok/s(new)	KV MB
+128	607	73
+256	606	129
+512	597	241
+
+Throughput remains nearly flat despite KV doubling.
+
+Conclusion:
+
+RTX 5090 is not bandwidth-bound at ~240MB KV.
+
+Qwen 7B — batch=16
+Tokens	tok/s(new)	KV MB
+256	1122	259
+512	1110	483
+
+Slight throughput reduction, but still mostly compute-bound.
+
+🚀 Phase 4 — Backend Comparison (HF vs vLLM)
+7B — batch=16, new_tokens=512
+Backend	tok/s(new)	Latency
+HF eager	1110	7.38s
+vLLM (paged KV)	1530	5.35s
+
+Throughput improvement:
+
+ 
+1.38
+×
+ 1.38×
+
+Interpretation:
+
+Memory pressure exists but is not dominant
+
+Compute cost is primary bottleneck
+
+Paged KV still reduces memory traffic and improves efficiency
+
+🔥 Cross-Regime Insight
+
+Earlier small-model experiments showed:
+
+Strong memory-bound behavior
+
+4–5× gains from paged KV
+
+With 7B on RTX 5090:
+
+System is largely compute-bound
+
+Paged KV provides moderate gains (~38%)
+
+This demonstrates:
+
+Optimization impact depends on bottleneck regime.
+
+🎯 Final Conclusions
+
+KV cache scales linearly with architecture parameters.
+
+RTX 5090 sustains near-linear decode scaling for 7B models up to ~480MB KV.
+
+Large models shift bottleneck from memory bandwidth to compute.
+
+Paged KV improves performance in both regimes, but magnitude depends on hardware and model scale.
