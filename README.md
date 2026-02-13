@@ -1,123 +1,147 @@
+# 🚀 LLM Inference Scaling Study
 
+### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
-````markdown
-# LLM_Engineering
-
-**LLM inference performance analysis, KV cache scaling, and paged-KV optimization on RTX 4090.**
+> A systematic investigation of how transformer architecture, KV cache growth, GPU hardware, and inference backends interact to determine real-world LLM performance.
 
 ---
 
-## Environment
+# 1️⃣ Motivation
 
-### Hardware
-- **GPU:** NVIDIA RTX 5090 (24GB VRAM)
+Decoder-only LLM inference performance often degrades **long before GPU memory is exhausted**.
 
-### Container
-- **Image:** `nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3`
-- **Disk:** 200GB container + 200GB mounted volume
+Why?
 
-### Container Startup
+Because inference is frequently limited by:
+
+* KV cache growth
+* Memory bandwidth saturation
+* Backend implementation details
+* Attention kernel efficiency
+
+This project isolates those variables through controlled experiments across:
+
+* Model scales (0.5B → 7B)
+* Batch sizes
+* Sequence lengths
+* HuggingFace vs vLLM vs TensorRT-LLM
+* Static KV vs paged KV
+* RTX 5090 GPU
+
+The objective is to determine:
+
+* When inference is compute-bound
+* When it becomes memory-bandwidth-bound
+* How paged KV changes system behavior
+
+---
+
+# 2️⃣ Environment
+
+## Hardware
+
+* **GPU:** NVIDIA RTX 5090 (24GB VRAM)
+
+## Container
+
+* **Image:** `nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3`
+* **Storage:** 200GB container + 200GB mounted volume
+
+## Container Initialization
+
 ```bash
 bash -c '
 apt update;
 DEBIAN_FRONTEND=noninteractive apt-get install openssh-server -y;
 mkdir -p ~/.ssh && chmod 700 ~/.ssh;
 echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys;
-chmod 700 ~/.ssh/authorized_keys;
+chmod 600 ~/.ssh/authorized_keys;
 service ssh start;
 sleep infinity'
-````
-
----
-
-## SSH / SFTP Access
-
-### Key Generation
-
-```bash
-ssh-keygen -t ed25519 -C "email@xxx.xxx"
-```
-
-> Windows: rename `id_ed25519` → `id_ed25519.ppk`
-
-### Connection Info
-
-* **Host:** `157.157.221.29`
-* **Port:** `30527`
-* **User:** `root`
-* **Auth:** SSH key (no password)
-
----
-
-## Git Workflow
-
-```bash
-alias quicksave='git add . && git commit -m "$(date +%m%d)" && git push'
 ```
 
 ---
 
-# LLM Inference Performance Analysis & KV Cache Optimization
+# 3️⃣ Secure Access
 
-* **Model:** Qwen2.5-0.5B-Instruct
-* **Precision:** bfloat16
-* **Backends:** HuggingFace (eager), vLLM (paged KV)
-* **Focus:** Decode throughput, KV cache behavior, memory-bandwidth bottlenecks
+### Generate SSH Key
 
----
+```bash
+ssh-keygen -t ed25519 -C "email@example.com"
+```
 
-## Overview
+Windows users may convert to `.ppk` for PuTTY.
 
-This project analyzes **real-world LLM inference bottlenecks on GPU**, with emphasis on:
+### Server Info
 
-* Prefill vs decode latency separation
-* Correct measurement of KV cache memory growth
-* Identification of memory-bandwidth saturation
-* Validation of paged KV as a system-level optimization
-
-All results are based on **controlled experiments** and **apples-to-apples comparisons**.
+* Host: `157.157.221.29`
+* Port: `30527`
+* User: `root`
+* Authentication: SSH key only
 
 ---
 
-## Why It Matters
+# 4️⃣ Project Scope
 
-For decoder-only LLMs, inference performance often degrades **well before GPU memory is exhausted**.
-The primary bottleneck is typically **KV cache growth**, which increases memory traffic and saturates bandwidth during decode.
+## Models
 
-This repository demonstrates:
+* Qwen2.5-0.5B-Instruct
+* Qwen2.5-1.5B
+* Qwen2.5-7B
 
-* **When** degradation occurs
-* **Why** it occurs
-* **How paged KV resolves it**
+## Precision
 
----
+* bfloat16
 
-## Experimental Setup
+## Backends Compared
 
-* **GPU:** RTX 4090 (24GB)
-* **Model:** `Qwen/Qwen2.5-0.5B-Instruct`
-* **Precision:** bfloat16
-* **Backends:** HuggingFace (eager), vLLM (paged KV)
+* HuggingFace (eager mode, static KV)
+* vLLM (paged KV cache)
+* TensorRT-LLM (engine-compiled, paged KV)
 
 ---
 
-## Metrics
+# 5️⃣ Theoretical KV Cache Analysis
 
-| Metric            | Description                                     |
-| ----------------- | ----------------------------------------------- |
-| **TTFT**          | Time-to-first-token (prefill latency)           |
-| **tok/s (new)**   | Decode throughput (new tokens only)             |
-| **KV cache (MB)** | Memory footprint from `past_key_values` tensors |
+For decoder-only transformers:
 
-> Allocator-based GPU memory stats are intentionally avoided due to caching and reuse artifacts.
+[
+KV_{MB/token} = \frac{2 \times L \times hidden_size \times bytes}{1024^2}
+]
+
+Where:
+
+* L = number of layers
+* hidden_size = model width
+* bytes = precision size (bf16 = 2 bytes)
+
+### Example: Qwen2.5-7B
+
+* Layers: 28
+* Hidden size: 3584
+* Precision: bf16
+
+Result:
+
+```
+KV ≈ 0.3828 MB per token (batch=1)
+```
+
+### Validation
+
+Empirical measurements confirmed:
+
+* Linear scaling with batch size
+* Linear scaling with generated tokens
+* Exact agreement with architectural formula
+
+This validates the theoretical model.
 
 ---
 
-## Methodology
+# 6️⃣ KV Cache Measurement (Ground Truth)
 
-### KV Cache Measurement (Ground Truth)
-
-KV memory is computed directly from model outputs:
+Instead of relying on allocator-based GPU memory stats (which are noisy due to caching), KV memory is computed directly from tensor outputs:
 
 ```python
 past = outputs.past_key_values
@@ -130,394 +154,142 @@ for k, v in past:
 kv_mb = kv_bytes / (1024 ** 2)
 ```
 
-This reflects **actual KV tensor size**, independent of allocator behavior.
+This reflects **true KV tensor footprint**, independent of allocator artifacts.
 
 ---
 
-## Results
+# 7️⃣ Phase I — Batch Scaling Behavior (7B)
 
-### KV Cache Scaling (max_new_tokens = 128)
-
-| Batch | KV Cache (MB) |
-| ----: | ------------: |
-|     1 |         ~1.98 |
-|     2 |         ~3.96 |
-|     4 |         ~7.92 |
-|     8 |        ~15.84 |
-|    16 |        ~31.69 |
-|    32 |        ~63.38 |
-
-✅ KV cache scales **linearly with batch size**, matching theory.
-
----
-
-### Decode Throughput Scaling (HF Eager)
+**max_new_tokens = 128**
 
 | Batch | tok/s (new) |
-| ----: | ----------: |
-|     1 |        ~110 |
-|     2 |        ~215 |
-|     4 |        ~423 |
-|     8 |        ~851 |
-|    16 |       ~1660 |
-|    32 |       ~3413 |
+| ----- | ----------- |
+| 1     | 80          |
+| 2     | 155         |
+| 4     | 308         |
+| 8     | 608         |
+| 16    | 1118        |
 
-Throughput scales with batch size **until KV growth increases memory traffic**.
+### Observation
 
----
+* Near-linear scaling up to batch=8
+* Slight curvature at batch=16
 
-### Bottleneck Identification (batch = 32)
+### Interpretation
 
-| New Tokens | tok/s (new) | KV Cache (MB) |
-| ---------: | ----------: | ------------: |
-|        128 |       ~3413 |           ~63 |
-|        256 |       ~3199 |          ~111 |
+* Increasing GPU compute utilization
+* Beginning of saturation effects
 
-* KV size nearly doubled
-* Decode throughput decreased
-* VRAM capacity remained far from full
-
-❗ **Conclusion:** Decode becomes **memory-bandwidth-bound**, not compute- or capacity-bound.
+System is still primarily **compute-bound**.
 
 ---
 
-### System-Level Fix: Paged KV (vLLM)
+# 8️⃣ Phase II — Token Scaling (Decode Growth)
 
-Same workload using vLLM:
+## Batch = 8
 
-```text
-batch = 32
-max_new_tokens = 256
-```
+| Tokens | tok/s | KV (MB) |
+| ------ | ----- | ------- |
+| 128    | 607   | 73      |
+| 256    | 606   | 129     |
+| 512    | 597   | 241     |
 
-| Backend         | tok/s (new) |     Latency |
-| --------------- | ----------: | ----------: |
-| HF eager        |       ~3199 |     ~2.56 s |
-| vLLM (paged KV) |  **~15111** | **~0.54 s** |
+Throughput remains nearly constant despite KV doubling.
 
-🚀 **~4.7× decode throughput improvement**
-
-Paged KV significantly reduces memory traffic and relieves bandwidth pressure.
+**Conclusion:** RTX 5090 is not bandwidth-bound at ~240MB KV.
 
 ---
 
-## Key Takeaways
-
-* Decode performance degrades due to **KV cache growth**, not VRAM exhaustion
-* KV cache scales linearly with **batch × generated tokens**
-* **Memory bandwidth** is the dominant bottleneck at scale
-* **Paged KV** is an effective system-level optimization
-
----
-
-## Conclusion
-
-> **Decoder-only LLM inference becomes memory-bandwidth-bound due to KV cache growth long before GPU memory capacity is reached. Paged KV mitigates this bottleneck and substantially improves decode throughput and latency.**
-
----
-
-## Usage
-
-```bash
-git clone https://github.com/<your-username>/LLM_Engineering.git
-cd LLM_Engineering
-```
-
-Run HuggingFace benchmarks:
-
-```bash
-python bm.py
-```
-
-Run vLLM benchmarks:
-
-```bash
-python bench_vllm.py
-```
-
----
-
-## Future Work
-
-* Compare paged vs static KV under concurrent workloads
-* Evaluate TensorRT-LLM vs vLLM on identical benchmarks
-* Study FP8 effects on KV footprint and decode throughput
-
-```
-
-#########################################################
-1) Basic pip install (fast path)
-python3 -m pip install -U pip setuptools wheel
-python3 -m pip install tensorrt_llm
-
-
-Verify:
-
-python3 -c "import tensorrt_llm; print('tensorrt_llm OK')"
-
-
-
-
-Next (minimal): confirm build tools + CUDA compiler
-
-Run:
-
-trtllm-build --help | head
-nvcc --version
-
-
-Next (simple): clone TensorRT-LLM repo (just for examples)
-cd /workspace
-apt-get update && apt-get install -y git git-lfs
-git lfs install
-git clone https://github.com/NVIDIA/TensorRT-LLM.git
-cd TensorRT-LLM
-git submodule update --init --recursive
-git lfs pull
-
-
-Quick check:
-
-ls -lah examples | head
-
-Then we run the exact engine build flow (TinyLlama first)
-1) Download model
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download('TinyLlama/TinyLlama-1.1B-Chat-v1.0', local_dir='/workspace/models/tinyllama', local_dir_use_symlinks=False)"
-
-2) Convert checkpoint
-python3 examples/llama/convert_checkpoint.py \
-  --model_dir /workspace/models/tinyllama \
-  --output_dir /workspace/trt_ckpt_tinyllama \
-  --dtype float16
-
-3) Build engine
-trtllm-build \
-  --checkpoint_dir /workspace/trt_ckpt_tinyllama \
-  --output_dir /workspace/trt_engine_tinyllama_b32_o256 \
-  --max_batch_size 32 \
-  --max_input_len 1024 \
-  --max_output_len 256
-
-4) Benchmark
-python3 examples/run.py \
-  --engine_dir /workspace/trt_engine_tinyllama_b32_o256 \
-  --batch_size 32 \
-  --max_output_len 256
-
-If you want ultra-minimal right now
-
-Run only this first and paste output:
-
-python3 -c "import tensorrt_llm; import inspect; print(tensorrt_llm.__file__)"
-
-
-But you don’t need it — cloning repo is the cleanest path.
-
-
-
-
-
-##################################################################
-🚀 LLM Inference Scaling Study: Architecture × Hardware × Backend
-
-GPU: NVIDIA RTX 5090
-Precision: bfloat16
-Models: Qwen2.5 (0.5B / 1.5B / 7B)
-Backends: HuggingFace (eager) vs vLLM (paged KV)
-
-📌 Objective
-
-This project investigates how:
-
-Transformer architecture
-
-KV cache growth
-
-Batch size
-
-Sequence length
-
-Backend implementation
-
-GPU hardware
-
-interact to determine real-world LLM inference performance.
-
-The goal is to identify:
-
-When inference is compute-bound
-
-When it becomes memory-bandwidth-bound
-
-How paged KV affects performance across regimes
-
-🧠 Phase 1 — Theoretical KV Analysis (ML Layer)
-
-For decoder-only transformers:
-
-𝐾
-𝑉
-_
-𝑀
-𝐵
-/
-𝑡
-𝑜
-𝑘
-𝑒
-𝑛
-=
-2
-×
-𝐿
-×
-ℎ
-𝑖
-𝑑
-𝑑
-𝑒
-𝑛
-_
-𝑠
-𝑖
-𝑧
-𝑒
-×
-𝑏
-𝑦
-𝑡
-𝑒
-𝑠
-/
-1024
-2
-KV_MB/token=2×L×hidden_size×bytes/1024
-2
-7B Model Config
-
-Layers = 28
-
-Hidden size = 3584
-
-bf16 (2 bytes)
-
-𝐾
-𝑉
-≈
-0.3828
- MB/token (batch=1)
-KV≈0.3828 MB/token (batch=1)
-
-Empirical KV measurements matched linear scaling across:
-
-batch
-
-token length
-
-This validated architectural reasoning.
-
-⚙️ Phase 2 — Batch Scaling
-Qwen 7B — max_new_tokens=128
-Batch	tok/s(new)	KV MB
-1	80	
-2	155	
-4	308	
-8	608	
-16	1118	
-
-Scaling is near-linear up to batch=8, with mild deviation at batch=16.
-
-This indicates:
-
-Increasing compute pressure
-
-Beginning of scaling curvature
-
-📈 Phase 3 — Token Scaling (Decode Behavior)
-Qwen 7B — batch=8
-Tokens	tok/s(new)	KV MB
-128	607	73
-256	606	129
-512	597	241
-
-Throughput remains nearly flat despite KV doubling.
-
-Conclusion:
-
-RTX 5090 is not bandwidth-bound at ~240MB KV.
-
-Qwen 7B — batch=16
-Tokens	tok/s(new)	KV MB
-256	1122	259
-512	1110	483
+## Batch = 16
+
+| Tokens | tok/s | KV (MB) |
+| ------ | ----- | ------- |
+| 256    | 1122  | 259     |
+| 512    | 1110  | 483     |
 
 Slight throughput reduction, but still mostly compute-bound.
 
-🚀 Phase 4 — Backend Comparison (HF vs vLLM)
-7B — batch=16, new_tokens=512
-Backend	tok/s(new)	Latency
-HF eager	1110	7.38s
-vLLM (paged KV)	1530	5.35s
+---
 
-Throughput improvement:
+# 9️⃣ Backend Comparison
 
- 
-1.38
-×
- 1.38×
+### Configuration
 
-Interpretation:
+7B model
+batch = 16
+max_new_tokens = 512
 
-Memory pressure exists but is not dominant
+| Backend         | tok/s | Latency |
+| --------------- | ----- | ------- |
+| HF eager        | 1110  | 7.38 s  |
+| vLLM (paged KV) | 1530  | 5.35 s  |
 
-Compute cost is primary bottleneck
+### Improvement
 
-Paged KV still reduces memory traffic and improves efficiency
+~1.38× throughput gain
 
-🔥 Cross-Regime Insight
+### Interpretation
 
-Earlier small-model experiments showed:
+* Memory traffic reduced
+* Better KV management
+* More efficient scheduling
 
-Strong memory-bound behavior
+Paged KV improves performance even in compute-dominant regimes.
 
-4–5× gains from paged KV
+---
 
-With 7B on RTX 5090:
+# 🔟 Cross-Regime Comparison
 
-System is largely compute-bound
+## Small Models (0.5B / 1.5B)
 
-Paged KV provides moderate gains (~38%)
+* Strong memory-bandwidth bottleneck
+* 4–5× improvement with paged KV
 
-This demonstrates:
+## 7B on RTX 5090
 
-Optimization impact depends on bottleneck regime.
+* Mostly compute-bound
+* ~38% improvement with paged KV
 
-🎯 Final Conclusions
+### Insight
 
-KV cache scales linearly with architecture parameters.
+Optimization impact depends on:
 
-RTX 5090 sustains near-linear decode scaling for 7B models up to ~480MB KV.
+* Model size
+* KV footprint
+* GPU memory bandwidth
+* Backend implementation
 
-Large models shift bottleneck from memory bandwidth to compute.
+---
 
-Paged KV improves performance in both regimes, but magnitude depends on hardware and model scale.
+# 1️⃣1️⃣ TensorRT-LLM Pipeline
 
+## Verify Installation
 
-##########################TensorRT-LLM##################################
-#Test tensorrt-LLM
+```bash
 python3 -c "import tensorrt_llm, os; print(os.path.dirname(tensorrt_llm.__file__))"
+```
 
-#download models
+---
+
+## Download Model
+
+```bash
 python3 - <<'PY'
 from huggingface_hub import snapshot_download
 p = snapshot_download("Qwen/Qwen2.5-7B-Instruct")
 print(p)
 PY
+```
 
-#HF_MODEL_DIR.
-export HF_MODEL_DIR="PASTE_THE_PATH_HERE"
+```bash
+export HF_MODEL_DIR="PATH_TO_MODEL"
+```
 
-#Convert HF → TRT-LLM checkpoint
+---
+
+## Convert HF → TRT-LLM Checkpoint
+
+```bash
 export CKPT_DIR="/workspace/trt_ckpt/qwen2p5_7b_bf16_1gpu"
 mkdir -p "$CKPT_DIR"
 
@@ -525,9 +297,13 @@ python3 /app/tensorrt_llm/examples/models/core/qwen/convert_checkpoint.py \
   --model_dir "$HF_MODEL_DIR" \
   --output_dir "$CKPT_DIR" \
   --dtype bfloat16
+```
 
+---
 
-#build engine
+## Build Engine
+
+```bash
 export ENGINE_DIR="/workspace/trt_engine/qwen2p5_7b_bf16_b16_s2560"
 mkdir -p "$ENGINE_DIR"
 
@@ -539,33 +315,36 @@ trtllm-build \
   --kv_cache_type paged \
   --gemm_plugin bfloat16 \
   --gpt_attention_plugin bfloat16
+```
 
-#Run
+---
+
+## Run Inference
+
+```bash
 python3 /app/tensorrt_llm/examples/run.py \
   --engine_dir "$ENGINE_DIR" \
   --tokenizer_dir "$HF_MODEL_DIR" \
   --input_text "Write one sentence about GPU inference." \
   --max_output_len 32
+```
 
+---
 
-#Resolve your local HF model directory (no redownload)
-python3 -c "from huggingface_hub import snapshot_download; print(snapshot_download('Qwen/Qwen2.5-7B-Instruct', local_files_only=True))"
-export HF_MODEL_DIR="</path/printed/by/command>"
+# 🧠 Final Technical Conclusions
 
-#Set TRTLLM_ROOT
-export TRTLLM_ROOT="/app/tensorrt_llm"
+1. KV cache growth scales linearly with architecture parameters.
+2. Inference degradation often begins due to memory bandwidth, not VRAM capacity.
+3. Larger models shift bottlenecks toward compute saturation.
+4. Paged KV reduces memory traffic and improves efficiency across regimes.
+5. Backend implementation significantly impacts real-world throughput.
 
+---
 
-#Convert HF → TensorRT-LLM checkpoint (Qwen converter)
-python3 "$TRTLLM_ROOT/examples/models/core/qwen/convert_checkpoint.py" \
-  --model_dir "$HF_MODEL_DIR" \
-  --output_dir "$CKPT_DIR" \
-  --dtype bfloat16
+# 🔮 Future Work
 
-#Run trtllm
-python3 examples/run.py \
-  --engine_dir "$ENGINE_DIR" \
-  --tokenizer_dir "$HF_MODEL_DIR" \
-  --max_output_len 512 \
-  --run_profiling \
-  --input_text $(cat /workspace/prompts_trt_16.txt)
+* Multi-tenant concurrent workload benchmarking
+* Kernel-level decode profiling
+* FP8 KV footprint experiments
+* Roofline analysis (FLOPs vs bandwidth)
+* TensorRT-LLM vs vLLM head-to-head scaling
