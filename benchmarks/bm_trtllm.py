@@ -11,7 +11,7 @@ from tensorrt_llm.runtime import ModelRunner
 # ====== CONFIG (edit these) ======
 ENGINE_DIR = "/workspace/trt_engine/qwen2p5_7b_fp16_b16_i2048_s2560"
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
-PROMPT_FILE = "prompts_mid.txt"   # used to build a batch; one prompt per line
+PROMPT_FILE = "./prompts/prompts_mid.txt"   # used to build a batch; one prompt per line
 BATCH = 16
 MAX_NEW_TOKENS = 512
 WARMUP = 1
