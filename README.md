@@ -348,3 +348,193 @@ python3 /app/tensorrt_llm/examples/run.py \
 * FP8 KV footprint experiments
 * Roofline analysis (FLOPs vs bandwidth)
 * TensorRT-LLM vs vLLM head-to-head scaling
+
+
+
+
+Here’s the clean summary — NVIDIA GPU Docker + TensorRT-LLM workflow.
+
+---
+
+# ✅ 1️⃣ Make GPU Work on Host
+
+Check GPU detected:
+
+```bash
+lspci | grep -i nvidia
+```
+
+Install driver (if needed):
+
+```bash
+ubuntu-drivers devices
+sudo apt install nvidia-driver-XXX -y
+sudo reboot
+```
+
+Verify:
+
+```bash
+nvidia-smi
+```
+
+If this doesn’t work → nothing else will.
+
+---
+
+# ✅ 2️⃣ Install Docker (Official Repo)
+
+```bash
+sudo apt install docker-ce docker-ce-cli containerd.io -y
+```
+
+Verify:
+
+```bash
+docker --version
+```
+
+---
+
+# ✅ 3️⃣ Install NVIDIA Container Toolkit
+
+Add repo (24.04 compatible):
+
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+```
+
+Install:
+
+```bash
+sudo apt update
+sudo apt install nvidia-container-toolkit -y
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Verify runtime exists:
+
+```bash
+docker info | grep runtime
+```
+
+You must see:
+
+```
+nvidia
+```
+
+---
+
+# ✅ 4️⃣ Test GPU Inside Docker
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+If GPU shows → Docker GPU layer is correct.
+
+---
+
+# ✅ 5️⃣ Login to NVIDIA NGC
+
+Go to:
+
+[https://ngc.nvidia.com](https://ngc.nvidia.com)
+→ Profile → Setup → API Key → Generate
+
+Then:
+
+```bash
+docker login nvcr.io
+```
+
+Username:
+
+```
+$oauthtoken
+```
+
+Password:
+
+```
+<your API key>
+```
+
+---
+
+# ✅ 6️⃣ Pull TensorRT-LLM Image
+
+```bash
+docker pull nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3
+```
+
+---
+
+# ✅ 7️⃣ Run Container (Best Practice)
+
+```bash
+docker run --gpus all -it \
+  --name trtllm \
+  -v $PWD:/workspace \
+  --shm-size=8g \
+  --ulimit memlock=-1 \
+  --ulimit stack=67108864 \
+  nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3
+```
+
+---
+
+# ✅ 8️⃣ Re-enter Later (If Not Using --rm)
+
+List containers:
+
+```bash
+docker ps -a
+```
+
+Restart:
+
+```bash
+docker start trtllm
+```
+
+Enter:
+
+```bash
+docker exec -it trtllm bash
+```
+
+---
+
+# Full Stack Order (Mental Model)
+
+```
+GPU Hardware
+→ NVIDIA Driver
+→ Docker
+→ NVIDIA Container Toolkit
+→ CUDA test container
+→ NGC login
+→ TensorRT-LLM container
+```
+
+---
+
+You now have a proper NVIDIA infra environment.
+
+If you want next:
+
+* Build TRT engine
+* Convert HF model
+* Benchmark decode throughput
+* Or set up persistent model cache
+
+Tell me the goal.
+
