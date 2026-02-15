@@ -376,7 +376,9 @@ Verify:
 nvidia-smi
 ```
 
-If this doesn’t work → nothing else will.
+If this doesn’t work → 
+
+sudo ubuntu-drivers autoinstall
 
 ---
 
