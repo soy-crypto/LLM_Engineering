@@ -352,9 +352,7 @@ python3 /app/tensorrt_llm/examples/run.py \
 
 
 
-Here’s the clean summary — NVIDIA GPU Docker + TensorRT-LLM workflow.
-
----
+NVIDIA GPU Docker + TensorRT-LLM workflow.
 
 # ✅ 1️⃣ Make GPU Work on Host
 
@@ -536,5 +534,330 @@ If you want next:
 * Benchmark decode throughput
 * Or set up persistent model cache
 
-Tell me the goal.
 
+
+Good.
+Now we write a **complete, reproducible, from-zero setup record**, including:
+
+* Docker installation
+* NVIDIA driver
+* NVIDIA Container Toolkit
+* NGC container
+* TensorRT-LLM pipeline
+
+This becomes your **production deployment documentation**.
+
+---
+
+# ✅ Full TensorRT-LLM Inference Pipeline — From Bare Metal
+
+Date: 2026-02-15
+GPU: RTX 4000 Ada (20GB)
+CUDA: 13.1
+TensorRT-LLM: 1.3.0rc3
+
+---
+
+# 1️⃣ Host Machine Preparation
+
+## Step 1 — Install NVIDIA Driver
+
+Verify GPU is visible:
+
+```bash
+nvidia-smi
+```
+
+Expected output:
+
+* Driver Version: 590.x
+* CUDA Version: 13.1
+* GPU detected
+
+If driver not installed (Ubuntu):
+
+```bash
+sudo ubuntu-drivers autoinstall
+sudo reboot
+```
+
+After reboot:
+
+```bash
+nvidia-smi
+```
+
+✔ GPU must work before touching Docker.
+
+---
+
+# 2️⃣ Install Docker (Ubuntu 22.04+)
+
+## Remove old versions
+
+```bash
+sudo apt remove docker docker-engine docker.io containerd runc
+```
+
+## Install dependencies
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
+```
+
+## Add Docker GPG key
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+```
+
+## Add Docker repository
+
+```bash
+echo \
+"deb [arch=$(dpkg --print-architecture) \
+signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) stable" | \
+sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+## Install Docker Engine
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+## Start Docker
+
+```bash
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+## Optional: Run Docker without sudo
+
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+Verify:
+
+```bash
+docker --version
+```
+
+✔ Docker installed successfully.
+
+---
+
+# 3️⃣ Install NVIDIA Container Toolkit (Critical)
+
+This allows Docker to access GPUs.
+
+## Add NVIDIA repository
+
+```bash
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+```
+
+```bash
+curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+```
+
+## Install toolkit
+
+```bash
+sudo apt update
+sudo apt install -y nvidia-container-toolkit
+```
+
+## Configure Docker runtime
+
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+---
+
+## Test GPU inside Docker
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
+```
+
+If you see your GPU → SUCCESS.
+
+✔ Docker + GPU integration complete.
+
+---
+
+# 4️⃣ Pull Official TensorRT-LLM Container
+
+We used:
+
+```
+nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+Pull image:
+
+```bash
+docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+---
+
+# 5️⃣ Launch Container with GPU Access
+
+```bash
+docker run --gpus all -it --rm \
+  -v /workspace:/workspace \
+  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+Inside container:
+
+```bash
+nvidia-smi
+```
+
+✔ GPU visible inside container.
+
+Check TensorRT-LLM:
+
+```bash
+python -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
+```
+
+Output:
+
+```
+1.3.0rc3
+```
+
+✔ Correct runtime installed.
+
+---
+
+# 6️⃣ Download Model (Inside Container)
+
+```bash
+pip install huggingface_hub
+
+huggingface-cli download TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --local-dir /workspace/tinyllama \
+  --local-dir-use-symlinks False
+```
+
+✔ Model downloaded (~2.2GB)
+
+---
+
+# 7️⃣ Convert HuggingFace → TRT Format
+
+```bash
+cd /app/tensorrt_llm/examples/models/core
+
+python llama/convert_checkpoint.py \
+  --model_dir /workspace/tinyllama \
+  --output_dir /workspace/tinyllama_trt \
+  --dtype float16
+```
+
+✔ Conversion completed successfully.
+
+---
+
+# 8️⃣ Build TensorRT Engine
+
+```bash
+trtllm-build \
+  --checkpoint_dir /workspace/tinyllama_trt \
+  --output_dir /workspace/tinyllama_engine \
+  --max_batch_size 8 \
+  --max_seq_len 2048
+```
+
+Results:
+
+* Engine size ~2.1GB
+* KV cache allocated ~15GB
+* Build time ~22s
+
+✔ Engine serialized successfully.
+
+---
+
+# 9️⃣ Run Inference
+
+```bash
+python /app/tensorrt_llm/examples/run.py \
+  --engine_dir /workspace/tinyllama_engine \
+  --tokenizer_dir /workspace/tinyllama \
+  --input_text "<s> <|system|>\nYou are a helpful assistant.\n<|user|>\nExplain what TensorRT-LLM is.\n<|assistant|>\n"
+```
+
+Output generated successfully.
+
+✔ GPU-native decoding working
+✔ Paged KV cache operational
+✔ No PyTorch fallback
+
+---
+
+# 🔟 Final System Architecture
+
+Host OS
+↓
+NVIDIA Driver
+↓
+Docker Engine
+↓
+NVIDIA Container Toolkit
+↓
+NGC TensorRT-LLM Container
+↓
+HF Model → TRT Conversion
+↓
+TensorRT Engine Build
+↓
+Runtime Inference
+
+---
+
+# 🏆 What You Now Own
+
+You can now:
+
+* Install Docker from scratch
+* Configure GPU container runtime
+* Deploy NVIDIA NGC containers
+* Convert HF models to TRT
+* Build optimized TensorRT engines
+* Run low-latency GPU inference
+* Manage KV cache memory
+
+This is **real inference systems engineering**.
+
+---
+
+If you want next, we can:
+
+* Reduce KV cache memory from 15GB → 4GB
+* Add throughput benchmark
+* Add TTFT measurement
+* Enable FP8 build
+* Turn this into a GitHub-ready portfolio project
