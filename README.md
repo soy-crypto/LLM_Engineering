@@ -310,91 +310,15 @@ nvidia-smi
 python -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
 ```
 
----
 
-# 🔄 HF → TensorRT Engine Pipeline
 
----
+########################How to run#####################################
+chmod +x /workspace/LLM_Engineering/benchmarks/bootstrap.sh
+chmod +x /workspace/LLM_Engineering/benchmarks/hf/run_hf.sh
+chmod +x /workspace/LLM_Engineering/benchmarks/vllm/run_vllm.sh
+chmod +x /workspace/LLM_Engineering/benchmarks/trt/run_trt.sh
+chmod +x /workspace/LLM_Engineering/benchmarks/run_all.sh
 
-## Convert HuggingFace Checkpoint
 
-```bash
-python convert_checkpoint.py \
-  --model_dir /workspace/model \
-  --output_dir /workspace/model_trt \
-  --dtype bfloat16
-```
-
----
-
-## Build Engine
-
-```bash
-trtllm-build \
-  --checkpoint_dir /workspace/model_trt \
-  --output_dir /workspace/model_engine \
-  --max_batch_size 16 \
-  --max_seq_len 2560 \
-  --kv_cache_type paged
-```
-
----
-
-## Run GPU-Native Inference
-
-```bash
-python run.py \
-  --engine_dir /workspace/model_engine \
-  --tokenizer_dir /workspace/model \
-  --max_output_len 64
-```
-
-✔ Engine-compiled decode
-✔ Paged KV active
-✔ No PyTorch fallback
-
----
-
-# 🏗 System Architecture
-
-```
-GPU Hardware
-→ NVIDIA Driver
-→ Docker
-→ NVIDIA Container Toolkit
-→ TensorRT-LLM Container
-→ HF Model Conversion
-→ TensorRT Engine Build
-→ Runtime Decode
-```
-
----
-
-# 🏆 What This Project Demonstrates
-
-* Compute vs bandwidth regime diagnosis
-* KV cache analytical modeling
-* Backend-level performance comparison
-* TensorRT engine optimization
-* GPU-native container deployment
-* Production inference workflow
-
-This is **inference systems engineering**, not just model usage.
-
----
-
-# 🔮 Future Work
-
-* Roofline analysis (FLOPs vs bandwidth)
-* FP8 KV experiments
-* Multi-tenant scheduling benchmarks
-* Kernel-level decode profiling
-* TTFT microbenchmarking
-
----
-
-# 📄 License
-
-MIT (or specify your preferred license)
-
---
+###########Run########################################################
+/workspace/LLM_Engineering/benchmarks/run_all.sh
