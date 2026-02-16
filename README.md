@@ -1,12 +1,12 @@
-Excellent — you have **strong raw material**, but it currently reads like a running lab notebook.
+Perfect. Below is your **final, polished, logically structured GitHub README** — combining:
 
-I’m going to rewrite everything into a **clean, logically structured, production-grade technical document** with:
+* Project overview
+* Scaling research
+* Backend comparison
+* Full reproducible NVIDIA setup
+* TensorRT-LLM deployment pipeline
 
-* Clear narrative flow
-* No duplication
-* Separation of research vs deployment
-* Professional tone
-* Portfolio-ready structure
+Clean. Professional. Recruiter-ready. Reproducible.
 
 ---
 
@@ -14,50 +14,40 @@ I’m going to rewrite everything into a **clean, logically structured, producti
 
 ### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
-> A systematic investigation into how transformer architecture, KV cache growth, GPU hardware, and backend implementation determine real-world LLM inference performance.
+> A systematic investigation into compute vs bandwidth limits in decoder-only LLM inference, with full GPU-native TensorRT-LLM deployment.
 
 ---
 
-# I. Research Study — Performance Scaling Analysis
+# 📌 Overview
 
----
+Decoder-only LLM inference often degrades **long before GPU memory is exhausted**.
 
-## 1️⃣ Problem Statement
-
-Decoder-only LLM inference frequently degrades **before GPU memory capacity is exhausted**.
-
-The real bottlenecks are often:
+The real bottlenecks are typically:
 
 * KV cache growth
 * Memory bandwidth saturation
-* Attention kernel implementation
-* Backend scheduling efficiency
-* Memory layout and allocation strategy
+* Attention kernel efficiency
+* Backend implementation details
 
-This study isolates those variables to understand:
+This project investigates how:
 
-* When inference is compute-bound
-* When it becomes memory-bandwidth-bound
-* How paged KV cache changes system behavior
-* How backend implementations impact throughput
+* Model scale (0.5B → 7B)
+* Batch size
+* Decode length
+* KV cache strategy (static vs paged)
+* Backend (HF vs vLLM vs TensorRT-LLM)
+
+interact to determine real-world inference performance.
 
 ---
 
-## 2️⃣ Experimental Setup
+# 🧪 Experimental Setup
 
-### Hardware
+## Hardware
 
 * **GPU:** NVIDIA RTX 5090 (24GB VRAM)
 
-### Container Runtime
-
-* TensorRT-LLM container:
-
-  ```
-  nvcr.io/nvidia/tensorrt-llm/release:1.2.0rc6.post3
-  ```
-
-### Models Evaluated
+## Models
 
 * Qwen2.5-0.5B-Instruct
 * Qwen2.5-1.5B
@@ -65,84 +55,50 @@ This study isolates those variables to understand:
 
 Precision: **bfloat16**
 
----
+## Backends Compared
 
-## 3️⃣ Backends Compared
-
-| Backend      | KV Strategy | Execution Mode  |
+| Backend      | KV Strategy | Execution       |
 | ------------ | ----------- | --------------- |
 | HuggingFace  | Static KV   | PyTorch eager   |
-| vLLM         | Paged KV    | Custom CUDA     |
+| vLLM         | Paged KV    | CUDA kernels    |
 | TensorRT-LLM | Paged KV    | Engine-compiled |
 
 ---
 
-## 4️⃣ Theoretical KV Cache Scaling
+# 🧠 Theoretical KV Cache Model
 
 For decoder-only transformers:
 
-[
-KV_{MB/token} = \frac{2 \times L \times hidden_size \times bytes}{1024^2}
-]
+```
+KV_MB_per_token =
+(2 × L × hidden_size × bytes) / 1024²
+```
 
-Where:
-
-* L = number of layers
-* hidden_size = model width
-* bytes = precision size (bf16 = 2 bytes)
-
----
-
-### Example: Qwen2.5-7B
+Example (Qwen2.5-7B):
 
 * Layers: 28
 * Hidden size: 3584
-* Precision: bf16
-
-Result:
+* bf16 (2 bytes)
 
 ```
-KV ≈ 0.3828 MB per token (batch=1)
+≈ 0.3828 MB per token (batch=1)
 ```
 
----
+### ✅ Empirical Validation
 
-### Empirical Validation
-
-Direct tensor-based measurement confirmed:
+KV tensor measurements confirmed:
 
 * Linear scaling with batch size
 * Linear scaling with decode length
-* Exact match with theoretical formula
+* Exact agreement with theory
 
-This validates the architectural KV model.
-
----
-
-## 5️⃣ Ground-Truth KV Measurement
-
-Allocator-reported GPU memory is noisy due to caching.
-
-Instead, KV memory was computed directly:
-
-```python
-past = outputs.past_key_values
-kv_bytes = 0
-
-for k, v in past:
-    kv_bytes += k.numel() * k.element_size()
-    kv_bytes += v.numel() * v.element_size()
-
-kv_mb = kv_bytes / (1024 ** 2)
-```
-
-This reflects true KV tensor footprint.
+Allocator-reported GPU memory was avoided; KV footprint was computed directly from tensor outputs.
 
 ---
 
-## 6️⃣ Phase I — Batch Scaling (7B Model)
+# 📊 Key Results
 
-**max_new_tokens = 128**
+## 1️⃣ Batch Scaling (7B, 128 tokens)
 
 | Batch | tok/s |
 | ----- | ----- |
@@ -152,19 +108,13 @@ This reflects true KV tensor footprint.
 | 8     | 608   |
 | 16    | 1118  |
 
-### Interpretation
-
-* Near-linear scaling to batch=8
-* Slight curvature at batch=16
-* Increasing GPU compute utilization
-
-**Conclusion:** System remains compute-bound in this region.
+➡ Near-linear scaling → compute-bound regime.
 
 ---
 
-## 7️⃣ Phase II — Decode Length Scaling
+## 2️⃣ Decode Length Scaling
 
-### Batch = 8
+Batch = 8
 
 | Tokens | tok/s | KV (MB) |
 | ------ | ----- | ------- |
@@ -174,114 +124,65 @@ This reflects true KV tensor footprint.
 
 Throughput remains stable despite KV doubling.
 
-**RTX 5090 is not bandwidth-bound at ~240MB KV.**
+➡ RTX 5090 not bandwidth-bound at ~240MB KV footprint.
 
 ---
 
-### Batch = 16
-
-| Tokens | tok/s | KV (MB) |
-| ------ | ----- | ------- |
-| 256    | 1122  | 259     |
-| 512    | 1110  | 483     |
-
-Slight degradation, but still compute-dominant.
-
----
-
-## 8️⃣ Backend Comparison (7B, batch=16, 512 tokens)
+## 3️⃣ Backend Comparison (7B, batch=16, 512 tokens)
 
 | Backend         | tok/s | Latency |
 | --------------- | ----- | ------- |
 | HF eager        | 1110  | 7.38 s  |
 | vLLM (paged KV) | 1530  | 5.35 s  |
 
-### Performance Gain
-
-~1.38× throughput improvement.
-
-### Explanation
-
-Paged KV improves:
-
-* Memory locality
-* Reduced redundant memory traffic
-* Kernel efficiency
-* Scheduling
-
-Even in compute-dominant regimes, backend implementation materially impacts performance.
+**~1.38× throughput improvement using paged KV.**
 
 ---
 
-## 9️⃣ Cross-Regime Behavior
+## 4️⃣ Cross-Regime Insight
 
-### Small Models (0.5B / 1.5B)
+Small models (0.5B / 1.5B):
 
 * Strong memory-bandwidth bottleneck
 * 4–5× improvement with paged KV
 
-### 7B Model
+7B model:
 
 * Mostly compute-bound
 * ~38% backend improvement
 
 ---
 
-## 🔬 Key Insight
-
-Inference bottlenecks depend on:
-
-* Model scale
-* KV footprint
-* GPU bandwidth
-* Backend memory layout
-* Kernel implementation
-
-There is no universal bottleneck — regime is architecture + hardware dependent.
-
----
-
-## 🧠 Technical Conclusions
+# 🔬 Core Technical Insights
 
 1. KV cache scales linearly with architecture parameters.
 2. Inference degradation is often bandwidth-driven, not VRAM-capacity-driven.
 3. Larger models shift bottlenecks toward compute saturation.
-4. Paged KV reduces memory traffic and improves throughput.
-5. Backend engineering significantly impacts real-world performance.
+4. Paged KV reduces memory traffic and improves efficiency.
+5. Backend implementation significantly impacts throughput.
 
 ---
 
-# II. Production Deployment — From Bare Metal to TensorRT-LLM
+# ⚙️ Full Environment Setup (From Bare Metal)
 
-This section documents a **fully reproducible GPU inference deployment pipeline**.
+This section provides a fully reproducible NVIDIA GPU + Docker + TensorRT-LLM setup.
 
 ---
 
-## 1️⃣ System Stack (Mental Model)
+## 1️⃣ Install NVIDIA Driver (Enable `nvidia-smi`)
 
-```
-GPU Hardware
-↓
-NVIDIA Driver
-↓
-Docker Engine
-↓
-NVIDIA Container Toolkit
-↓
-NGC TensorRT-LLM Container
-↓
-HF Model Conversion
-↓
-TensorRT Engine Build
-↓
-Runtime Inference
+Check GPU:
+
+```bash
+lspci | grep -i nvidia
 ```
 
----
+Install driver (Ubuntu):
 
-## 2️⃣ Host Machine Preparation
-
-### Install NVIDIA Driver
+```bash
+sudo ubuntu-drivers autoinstall
+sudo reboot
+```
 
 Verify:
 
@@ -289,26 +190,49 @@ Verify:
 nvidia-smi
 ```
 
-If not installed (Ubuntu):
+If this works → GPU driver is correctly installed.
 
-```bash
-sudo ubuntu-drivers autoinstall
-sudo reboot
-```
-
-GPU must work before Docker.
+⚠️ Do NOT manually install CUDA. TensorRT-LLM container includes runtime CUDA.
 
 ---
 
-## 3️⃣ Install Docker
+## 2️⃣ Install Docker
+
+Remove old versions:
 
 ```bash
 sudo apt remove docker docker-engine docker.io containerd runc
+```
+
+Install dependencies:
+
+```bash
 sudo apt update
 sudo apt install -y ca-certificates curl gnupg lsb-release
 ```
 
-Add repository + install Docker Engine.
+Add Docker repository and install:
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+```
+
+```bash
+echo \
+"deb [arch=$(dpkg --print-architecture) \
+signed-by=/etc/apt/keyrings/docker.gpg] \
+https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) stable" | \
+sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
 
 Verify:
 
@@ -318,7 +242,7 @@ docker --version
 
 ---
 
-## 4️⃣ Install NVIDIA Container Toolkit
+## 3️⃣ Install NVIDIA Container Toolkit
 
 ```bash
 sudo apt install -y nvidia-container-toolkit
@@ -332,6 +256,32 @@ Test GPU inside Docker:
 docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 ```
 
+If GPU appears → Docker GPU integration is working.
+
+---
+
+# 🐳 TensorRT-LLM Deployment
+
+---
+
+## 4️⃣ Login to NVIDIA NGC
+
+```bash
+docker login nvcr.io
+```
+
+Username:
+
+```
+$oauthtoken
+```
+
+Password:
+
+```
+<NGC API key>
+```
+
 ---
 
 ## 5️⃣ Pull TensorRT-LLM Container
@@ -340,17 +290,33 @@ docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
-Launch:
+---
+
+## 6️⃣ Launch Container
 
 ```bash
 docker run --gpus all -it --rm \
   -v $PWD:/workspace \
+  --shm-size=8g \
+  --ulimit memlock=-1 \
+  --ulimit stack=67108864 \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+Inside container:
+
+```bash
+nvidia-smi
+python -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
 ```
 
 ---
 
-## 6️⃣ Convert HuggingFace Model
+# 🔄 HF → TensorRT Engine Pipeline
+
+---
+
+## Convert HuggingFace Checkpoint
 
 ```bash
 python convert_checkpoint.py \
@@ -361,7 +327,7 @@ python convert_checkpoint.py \
 
 ---
 
-## 7️⃣ Build TensorRT Engine
+## Build Engine
 
 ```bash
 trtllm-build \
@@ -374,7 +340,7 @@ trtllm-build \
 
 ---
 
-## 8️⃣ Run GPU-Native Inference
+## Run GPU-Native Inference
 
 ```bash
 python run.py \
@@ -383,43 +349,52 @@ python run.py \
   --max_output_len 64
 ```
 
-✔ Paged KV operational
-✔ No PyTorch fallback
 ✔ Engine-compiled decode
+✔ Paged KV active
+✔ No PyTorch fallback
 
 ---
 
-# 🏆 Engineering Outcomes
+# 🏗 System Architecture
 
-You now demonstrate:
+```
+GPU Hardware
+→ NVIDIA Driver
+→ Docker
+→ NVIDIA Container Toolkit
+→ TensorRT-LLM Container
+→ HF Model Conversion
+→ TensorRT Engine Build
+→ Runtime Decode
+```
+
+---
+
+# 🏆 What This Project Demonstrates
 
 * Compute vs bandwidth regime diagnosis
 * KV cache analytical modeling
 * Backend-level performance comparison
-* Engine-level optimization via TensorRT-LLM
-* Full GPU containerized deployment
+* TensorRT engine optimization
+* GPU-native container deployment
 * Production inference workflow
 
-This is **inference systems engineering**, not model usage.
+This is **inference systems engineering**, not just model usage.
 
 ---
 
-# 🔮 Future Extensions
+# 🔮 Future Work
 
 * Roofline analysis (FLOPs vs bandwidth)
 * FP8 KV experiments
-* Multi-tenant workload scheduling
+* Multi-tenant scheduling benchmarks
 * Kernel-level decode profiling
-* TTFT micro-benchmarking
+* TTFT microbenchmarking
 
 ---
 
-If you'd like, next I can:
+# 📄 License
 
-* Turn this into a GitHub README (clean + concise)
-* Convert into a 1-page PDF research brief
-* Generate 3 high-impact resume bullets
-* Prepare an interview explanation script
-* Add a roofline performance diagram explanation
+MIT (or specify your preferred license)
 
-You’ve built something real here.
+--
