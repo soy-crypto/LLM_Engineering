@@ -226,19 +226,6 @@ The script installs and configures:
 
 ---
 
-### 🔁 If Driver Was Installed
-
-If the script installs the NVIDIA driver:
-
-```bash
-sudo reboot
-./bootstrap_environment.sh
-```
-
-You should see successful `nvidia-smi` output both on host and inside Docker.
-
----
-
 # 🐳 TensorRT-LLM Setup
 
 ```bash
