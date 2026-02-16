@@ -5,17 +5,13 @@ echo "================================="
 echo "Setting up benchmark environments"
 echo "================================="
 
-# Install Python 3.10 if not present
-if ! command -v python3.10 &> /dev/null; then
-    echo "Installing Python 3.10..."
-    apt update
-    apt install -y python3.10 python3.10-venv
-fi
+# Use system Python (3.12) for venv
+PYTHON_BIN="python3"
 
 # HF venv
 if [ ! -d "/workspace/.venv_hf" ]; then
     echo "Creating HF venv..."
-    python3.10 -m venv /workspace/.venv_hf
+    $PYTHON_BIN -m venv /workspace/.venv_hf
     source /workspace/.venv_hf/bin/activate
     pip install --upgrade pip
     pip install torch --index-url https://download.pytorch.org/whl/cu121
@@ -26,7 +22,7 @@ fi
 # vLLM venv
 if [ ! -d "/workspace/.venv_vllm" ]; then
     echo "Creating vLLM venv..."
-    python3.10 -m venv /workspace/.venv_vllm
+    $PYTHON_BIN -m venv /workspace/.venv_vllm
     source /workspace/.venv_vllm/bin/activate
     pip install --upgrade pip
     pip install torch --index-url https://download.pytorch.org/whl/cu121
