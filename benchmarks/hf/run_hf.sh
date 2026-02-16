@@ -11,6 +11,6 @@ python /workspace/LLM_Engineering/benchmarks/hf/bm_hf.py \
   --max_new_tokens 512 \
   --dtype bfloat16 \
   --runs 3 \
-  --out_csv /workspace/results/hf_results.csv
+  --out_csv /workspace/LLM_Engineering/results/hf_results.csv
 
 deactivate
