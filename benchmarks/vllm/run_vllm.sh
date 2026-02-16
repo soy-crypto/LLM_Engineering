@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-source /workspace/.venv_vllm/bin/activate
+source /workspace/LLM_Engineering/.venv_vllm/bin/activate
 
 python /workspace/LLM_Engineering/vllm/bm_vllm.py \
   --model Qwen/Qwen2.5-7B-Instruct \

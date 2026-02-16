@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-source /workspace/.venv_hf/bin/activate
+source /workspace/LLM_Engineering/.venv_hf/bin/activate
 
 
 python /workspace/LLM_Engineering/benchmarks/hf/bm_hf.py \
