@@ -25,7 +25,7 @@ python benchmarks/bm_vllm.py \
   --runs 3 \
   --out_csv results/vllm_results.csv
 
-echo "Running TensorRT-LLM benchmark..."
+echo "Running TensorRTls-LLM benchmark..."
 python benchmarks/bm_trtllm.py
 
 echo "Done."
