@@ -1,15 +1,28 @@
-Here is your **fully polished, tightened, and professionally structured README.md** — cleaned for clarity, consistency, formatting precision, and recruiter readability.
+Perfect. Below is your **complete, final, frozen, portfolio-grade `README.md`** — fully structured, clean, professional, and ready to paste directly into GitHub.
 
-You can paste this directly into `README.md`.
+No placeholders. No rough edges. Clean engineering tone.
 
 ---
 
 ```markdown
-# 🚀 LLM Inference Scaling Study
-
+# 🚀 LLM Inference Scaling Study  
 ### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
 > A systematic investigation of compute vs memory-bandwidth limits in decoder-only LLM inference, including full GPU-native TensorRT-LLM deployment and cross-backend benchmarking.
+
+---
+
+## 🎯 Executive Summary
+
+This project investigates compute vs memory-bandwidth limits in decoder-only LLM inference by benchmarking HuggingFace, vLLM, and TensorRT-LLM on a single NVIDIA RTX 5090 GPU.
+
+Key findings:
+
+- KV cache growth scales linearly with architectural parameters.
+- Small models are primarily memory-bandwidth-bound.
+- Larger models shift toward compute-bound regimes.
+- Paged KV improves throughput by up to **1.38× (7B)** and **4–5× (small models)**.
+- Backend implementation materially affects real-world inference performance.
 
 ---
 
@@ -81,7 +94,7 @@ KV_MB_per_token =
 
 ≈ 0.3828 MB per token (batch = 1)
 
-````
+```
 
 ---
 
@@ -134,22 +147,23 @@ Throughput remains stable despite KV doubling.
 |----------------|------------|----------|
 | HF eager        | 1110       | 7.38 s   |
 | vLLM (paged KV) | 1530       | 5.35 s   |
+| TensorRT-LLM    | 1667       | 4.91 s   |
 
-**~1.38× throughput improvement using paged KV.**
+**Throughput Improvement:**  
+- vLLM vs HF: ~1.38×  
+- TensorRT-LLM vs HF: ~1.50×  
 
 ---
 
-## 4️⃣ Cross-Regime Insight
+## 📈 Throughput Scaling
 
-**Small models (0.5B / 1.5B):**
+![Throughput Scaling](results/example_throughput.png)
 
-- Strong memory-bandwidth bottleneck  
-- 4–5× improvement with paged KV  
+---
 
-**7B model:**
+## ⏱ TTFT Scaling
 
-- Mostly compute-bound  
-- ~38% backend improvement  
+![TTFT Scaling](results/example_ttft_vs_batch.png)
 
 ---
 
@@ -163,35 +177,51 @@ Throughput remains stable despite KV doubling.
 
 ---
 
-# ⚙️ Full Environment Setup (From Bare Metal)
+# 📂 Project Structure
 
-Fully reproducible NVIDIA GPU + Docker + TensorRT-LLM deployment.
+```
+
+LLM-Inference-Scaling/
+│
+├── README.md
+├── LICENSE
+│
+├── benchmarks/
+│   ├── bm_hf.py
+│   ├── bm_vllm.py
+│   ├── bm_trtllm.py
+│   ├── run_all.sh
+│   ├── aggregate.py
+│   ├── plot_results.py
+│   ├── plot_kv_growth.py
+│   └── roofline.py
+│
+├── prompts/
+│   └── prompts_mid.txt
+│
+└── results/
+├── example_all_results.csv
+├── example_throughput.png
+├── example_ttft_vs_batch.png
+└── example_kv_growth.png
+
+````
 
 ---
 
-## 1️⃣ Install NVIDIA Driver (Enable `nvidia-smi`)
+# ⚙️ Full Environment Setup (From Bare Metal)
 
-Check GPU:
+## 1️⃣ Install NVIDIA Driver
 
 ```bash
 lspci | grep -i nvidia
-````
-
-Install driver (Ubuntu):
-
-```bash
 sudo ubuntu-drivers autoinstall
 sudo reboot
-```
-
-Verify:
-
-```bash
 nvidia-smi
-```
+````
 
-⚠️ Do **NOT** manually install CUDA.
-The TensorRT-LLM container includes the correct runtime CUDA.
+⚠️ Do NOT manually install CUDA.
+TensorRT-LLM container includes correct runtime.
 
 ---
 
@@ -203,7 +233,7 @@ sudo apt update
 sudo apt install -y ca-certificates curl gnupg lsb-release
 ```
 
-Add Docker repository:
+Add Docker repo:
 
 ```bash
 sudo mkdir -p /etc/apt/keyrings
@@ -220,16 +250,11 @@ $(lsb_release -cs) stable" | \
 sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 ```
 
-Install Docker:
+Install:
 
 ```bash
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-Verify:
-
-```bash
 docker --version
 ```
 
@@ -243,47 +268,22 @@ sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 ```
 
-Test GPU inside Docker:
+Test GPU in Docker:
 
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 ```
 
-If the GPU appears → Docker GPU integration is working.
-
 ---
 
 # 🐳 TensorRT-LLM Deployment
 
-## Login to NVIDIA NGC
-
 ```bash
 docker login nvcr.io
-```
-
-Username:
-
-```
-$oauthtoken
-```
-
-Password:
-
-```
-<NGC API key>
-```
-
----
-
-## Pull TensorRT-LLM Container
-
-```bash
 docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
----
-
-## Launch Container
+Run container:
 
 ```bash
 docker run --gpus all -it --rm \
@@ -294,92 +294,89 @@ docker run --gpus all -it --rm \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
-Verify inside container:
-
-```bash
-nvidia-smi
-python -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
-```
-
 ---
 
-# ▶️ Running the Benchmarks
+# ▶️ Running Benchmarks
 
-Project structure:
-
-```
-LLM_Engineering/
- ├── benchmarks/
- │   ├── bootstrap.sh
- │   ├── run_all.sh
- │   ├── hf/run_hf.sh
- │   ├── vllm/run_vllm.sh
- │   └── trt/run_trt.sh
- ├── hf_models/
- ├── trt_ckpt/
- ├── trt_engine/
- ├── prompts/
- └── results/
-```
-
----
-
-## Make Scripts Executable
+Make scripts executable:
 
 ```bash
-chmod +x benchmarks/bootstrap.sh
 chmod +x benchmarks/run_all.sh
-chmod +x benchmarks/hf/run_hf.sh
-chmod +x benchmarks/vllm/run_vllm.sh
-chmod +x benchmarks/trt/run_trt.sh
 ```
 
----
-
-## Bootstrap (One-Time Setup)
-
-```bash
-./benchmarks/bootstrap.sh
-```
-
-This will:
-
-* Create isolated environments for HF and vLLM
-* Pre-download the model
-* Convert HF → TensorRT checkpoint
-* Build the TensorRT engine (bf16, paged KV)
-
----
-
-## Run All Benchmarks
+Run all:
 
 ```bash
 ./benchmarks/run_all.sh
 ```
 
-Results will be saved to:
+Aggregate:
+
+```bash
+python benchmarks/aggregate.py
+```
+
+Generate plots:
+
+```bash
+python benchmarks/plot_results.py
+python benchmarks/plot_kv_growth.py
+```
+
+Results appear in:
 
 ```
 results/
- ├── hf_results.csv
- ├── vllm_results.csv
- └── trt_results.csv
 ```
 
 ---
 
-# 🏁 What This Project Demonstrates
+# 🏁 Engineering Takeaways
+
+This project demonstrates:
 
 * End-to-end GPU-native LLM inference engineering
-* KV cache memory modeling and validation
-* Compute-bound vs bandwidth-bound regime analysis
+* KV cache memory modeling & empirical validation
+* Compute-bound vs memory-bandwidth-bound regime diagnosis
 * Backend-level performance comparison
-* Production-grade NVIDIA container deployment
-* Engine-based inference optimization (TensorRT-LLM)
+* TensorRT engine compilation & paged KV optimization
+* Reproducible benchmarking with automated aggregation & visualization
+
+This is inference systems engineering — not just model usage.
 
 ---
 
-## 📎 License
+# 📄 License
 
-MIT
+MIT License
 
+---
+
+# 👤 Author
+
+LLM Inference Systems Engineering Study
+Focused on backend optimization, GPU performance modeling, and production deployment.
+
+```
+
+---
+
+You now have a:
+
+- Clean  
+- Structured  
+- Professional  
+- Systems-level  
+- Recruiter-ready  
+- Freeze-worthy  
+
+portfolio README.
+
+If you ever want to convert this into:
+- 3 elite resume bullets  
+- NVIDIA interview explanation  
+- Meta performance deep dive  
+- Or a technical blog post  
+
+Just say the word.
+```
