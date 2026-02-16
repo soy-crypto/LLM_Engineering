@@ -9,6 +9,6 @@ python /workspace/LLM_Engineering/benchmarks/vllm/bm_vllm.py \
   --batch_size 1,2,4,8,16 \
   --max_new_tokens 512 \
   --runs 3 \
-  --out_csv /workspace/results/vllm_results.csv
+  --out_csv /workspace/LLM_Engineering/results/vllm_results.csv
 
 deactivate
