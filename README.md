@@ -1,4 +1,6 @@
-Here is your **complete README.md in clean GitHub markdown format** — ready to paste directly into your repository.
+Here is your **fully polished, tightened, and professionally structured README.md** — cleaned for clarity, consistency, formatting precision, and recruiter readability.
+
+You can paste this directly into `README.md`.
 
 ---
 
@@ -7,7 +9,7 @@ Here is your **complete README.md in clean GitHub markdown format** — ready to
 
 ### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
-> A systematic investigation into compute vs memory bandwidth limits in decoder-only LLM inference, with full GPU-native TensorRT-LLM deployment and cross-backend benchmarking.
+> A systematic investigation of compute vs memory-bandwidth limits in decoder-only LLM inference, including full GPU-native TensorRT-LLM deployment and cross-backend benchmarking.
 
 ---
 
@@ -15,14 +17,14 @@ Here is your **complete README.md in clean GitHub markdown format** — ready to
 
 Decoder-only LLM inference often degrades **long before GPU memory is exhausted**.
 
-The real bottlenecks are typically:
+The true bottlenecks are typically:
 
 - KV cache growth  
 - Memory bandwidth saturation  
 - Attention kernel efficiency  
 - Backend implementation details  
 
-This project investigates how:
+This project analyzes how:
 
 - Model scale (0.5B → 7B)  
 - Batch size  
@@ -52,9 +54,9 @@ Precision: **bfloat16**
 
 | Backend        | KV Strategy | Execution Model      |
 |---------------|------------|----------------------|
-| HuggingFace  | Static KV  | PyTorch eager        |
-| vLLM         | Paged KV   | Custom CUDA kernels  |
-| TensorRT-LLM | Paged KV   | Engine-compiled CUDA |
+| HuggingFace   | Static KV  | PyTorch eager        |
+| vLLM          | Paged KV   | Custom CUDA kernels  |
+| TensorRT-LLM  | Paged KV   | Engine-compiled CUDA |
 
 ---
 
@@ -69,7 +71,7 @@ KV_MB_per_token =
 
 ```
 
-Example: **Qwen2.5-7B**
+### Example: Qwen2.5-7B
 
 - Layers: 28  
 - Hidden size: 3584  
@@ -77,7 +79,7 @@ Example: **Qwen2.5-7B**
 
 ```
 
-≈ 0.3828 MB per token (batch=1)
+≈ 0.3828 MB per token (batch = 1)
 
 ````
 
@@ -112,7 +114,7 @@ KV footprint was computed directly from model tensors.
 
 ---
 
-## 2️⃣ Decode Length Scaling (Batch=8)
+## 2️⃣ Decode Length Scaling (Batch = 8)
 
 | Tokens | Tokens/sec | KV (MB) |
 |--------|------------|----------|
@@ -126,7 +128,7 @@ Throughput remains stable despite KV doubling.
 
 ---
 
-## 3️⃣ Backend Comparison (7B, batch=16, 512 tokens)
+## 3️⃣ Backend Comparison (7B, Batch = 16, 512 tokens)
 
 | Backend         | Tokens/sec | Latency |
 |----------------|------------|----------|
@@ -139,12 +141,12 @@ Throughput remains stable despite KV doubling.
 
 ## 4️⃣ Cross-Regime Insight
 
-Small models (0.5B / 1.5B):
+**Small models (0.5B / 1.5B):**
 
 - Strong memory-bandwidth bottleneck  
 - 4–5× improvement with paged KV  
 
-7B model:
+**7B model:**
 
 - Mostly compute-bound  
 - ~38% backend improvement  
@@ -188,7 +190,8 @@ Verify:
 nvidia-smi
 ```
 
-⚠️ Do NOT manually install CUDA. The TensorRT-LLM container includes CUDA runtime.
+⚠️ Do **NOT** manually install CUDA.
+The TensorRT-LLM container includes the correct runtime CUDA.
 
 ---
 
@@ -246,6 +249,8 @@ Test GPU inside Docker:
 docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
 ```
 
+If the GPU appears → Docker GPU integration is working.
+
 ---
 
 # 🐳 TensorRT-LLM Deployment
@@ -300,6 +305,8 @@ python -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
 
 # ▶️ Running the Benchmarks
 
+Project structure:
+
 ```
 LLM_Engineering/
  ├── benchmarks/
@@ -315,6 +322,8 @@ LLM_Engineering/
  └── results/
 ```
 
+---
+
 ## Make Scripts Executable
 
 ```bash
@@ -325,11 +334,22 @@ chmod +x benchmarks/vllm/run_vllm.sh
 chmod +x benchmarks/trt/run_trt.sh
 ```
 
+---
+
 ## Bootstrap (One-Time Setup)
 
 ```bash
 ./benchmarks/bootstrap.sh
 ```
+
+This will:
+
+* Create isolated environments for HF and vLLM
+* Pre-download the model
+* Convert HF → TensorRT checkpoint
+* Build the TensorRT engine (bf16, paged KV)
+
+---
 
 ## Run All Benchmarks
 
@@ -362,6 +382,4 @@ results/
 ## 📎 License
 
 MIT
-
-```
 
