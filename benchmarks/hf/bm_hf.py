@@ -138,11 +138,11 @@ def measure(model: PreTrainedModel, parameters: Dict[str, Any], device: str, max
         kv_bytes = 0
 
         for layer in past:
-            k, v = layer
-            kv_bytes += k.numel() * k.element_size()
-            kv_bytes += v.numel() * v.element_size()
+            for tensor in layer:
+                kv_bytes += tensor.numel() * tensor.element_size()
 
         kv_cache_mb = kv_bytes / (1024 ** 2)
+
 
     return elapsed, output_tokens, new_tokens, kv_cache_mb
 
