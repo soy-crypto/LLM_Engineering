@@ -1,11 +1,16 @@
 #!/bin/bash
+set -e
 
 MODEL="Qwen/Qwen2.5-7B-Instruct"
 PROMPTS="prompts/prompts_mid.txt"
 BATCH="1,2,4,8,16"
 MAX_NEW=512
 
-echo "Running HF benchmark..."
+echo "================================="
+echo "Running HuggingFace Benchmark"
+echo "================================="
+
+source .venv_hf/bin/activate
 
 python benchmarks/hf/bm_hf.py \
   --model $MODEL \
@@ -15,3 +20,7 @@ python benchmarks/hf/bm_hf.py \
   --dtype bfloat16 \
   --runs 3 \
   --out_csv results/hf_results.csv
+
+deactivate
+
+echo "HF benchmark completed."

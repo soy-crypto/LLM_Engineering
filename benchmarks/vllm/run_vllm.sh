@@ -1,14 +1,16 @@
 #!/bin/bash
+set -e
 
 MODEL="Qwen/Qwen2.5-7B-Instruct"
 PROMPTS="prompts/prompts_mid.txt"
 BATCH="1,2,4,8,16"
 MAX_NEW=512
 
-echo "Running vLLM benchmark..."
+echo "================================="
+echo "Running vLLM Benchmark"
+echo "================================="
 
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate vllm_env
+source .venv_vllm/bin/activate
 
 python benchmarks/vllm/bm_vllm.py \
   --model $MODEL \
@@ -19,4 +21,6 @@ python benchmarks/vllm/bm_vllm.py \
   --runs 3 \
   --out_csv results/vllm_results.csv
 
-conda deactivate
+deactivate
+
+echo "vLLM benchmark completed."
