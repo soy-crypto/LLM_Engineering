@@ -1,26 +1,14 @@
 #!/bin/bash
 set -e
 
-MODEL="Qwen/Qwen2.5-7B-Instruct"
-PROMPTS="prompts/prompts_mid.txt"
-BATCH="1,2,4,8,16"
-MAX_NEW=512
+source /workspace/.venv_vllm/bin/activate
 
-echo "================================="
-echo "Running vLLM Benchmark"
-echo "================================="
-
-source .venv_vllm/bin/activate
-
-python benchmarks/vllm/bm_vllm.py \
-  --model $MODEL \
-  --prompts $PROMPTS \
-  --batch_size $BATCH \
-  --max_new_tokens $MAX_NEW \
-  --dtype bfloat16 \
+python /workspace/LLM_Engineering/vllm/bm_vllm.py \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --prompts /workspace/prompts/prompts_mid.txt \
+  --batch_size 1,2,4,8,16 \
+  --max_new_tokens 512 \
   --runs 3 \
-  --out_csv results/vllm_results.csv
+  --out_csv /workspace/results/vllm_results.csv
 
 deactivate
-
-echo "vLLM benchmark completed."

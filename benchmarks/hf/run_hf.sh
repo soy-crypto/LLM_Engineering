@@ -1,26 +1,16 @@
 #!/bin/bash
 set -e
 
-MODEL="Qwen/Qwen2.5-7B-Instruct"
-PROMPTS="prompts/prompts_mid.txt"
-BATCH="1,2,4,8,16"
-MAX_NEW=512
+source /workspace/.venv_hf/bin/activate
 
-echo "================================="
-echo "Running HuggingFace Benchmark"
-echo "================================="
 
-source .venv_hf/bin/activate
-
-python benchmarks/hf/bm_hf.py \
-  --model $MODEL \
-  --prompts $PROMPTS \
-  --batch_size $BATCH \
-  --max_new_tokens $MAX_NEW \
+python /workspace/LLM_Engineering/benchmarks/hf/bm_hf.py \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --prompts /workspace/prompts/prompts_mid.txt \
+  --batch_size 1,2,4,8,16 \
+  --max_new_tokens 512 \
   --dtype bfloat16 \
   --runs 3 \
-  --out_csv results/hf_results.csv
+  --out_csv /workspace/results/hf_results.csv
 
 deactivate
-
-echo "HF benchmark completed."
