@@ -1,31 +1,22 @@
 #!/bin/bash
 
-MODEL="Qwen/Qwen2.5-7B-Instruct"
-PROMPTS="prompts/prompts_mid.txt"
-BATCH="1,2,4,8,16"
-MAX_NEW=512
+set -e  # Stop on first error
 
-echo "Running HuggingFace benchmark..."
-python benchmarks/bm_hf.py \
-  --model $MODEL \
-  --prompts $PROMPTS \
-  --batch_size $BATCH \
-  --max_new_tokens $MAX_NEW \
-  --dtype bfloat16 \
-  --runs 3 \
-  --out_csv results/hf_results.csv
+echo "======================================"
+echo "Starting Full Benchmark Suite"
+echo "======================================"
 
-echo "Running vLLM benchmark..."
-python benchmarks/bm_vllm.py \
-  --model $MODEL \
-  --prompts $PROMPTS \
-  --batch_size $BATCH \
-  --max_new_tokens $MAX_NEW \
-  --dtype bfloat16 \
-  --runs 3 \
-  --out_csv results/vllm_results.csv
+./benchmarks/hf/run_hf.sh
+./benchmarks/vllm/run_vllm.sh
+./benchmarks/trt/run_trt.sh
 
-echo "Running TensorRTls-LLM benchmark..."
-python benchmarks/bm_trtllm.py
+echo ""
+echo "Aggregating results..."
+python benchmarks/aggregate.py
 
-echo "Done."
+echo ""
+echo "Generating plots..."
+python benchmarks/plot_results.py
+
+echo ""
+echo "All benchmarks completed successfully."
