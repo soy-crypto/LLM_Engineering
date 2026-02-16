@@ -1,17 +1,29 @@
-# benchmarks/bm_trtllm.py
+# benchmarks/trt/bm_trtllm.py
+
+import argparse
 import time
+import csv
 import torch
 from transformers import AutoTokenizer
 from tensorrt_llm.runtime import ModelRunner, SamplingConfig
 
-ENGINE_DIR = "/workspace/trt_engine/qwen2p5_7b_fp16_b16_i2048_s2560"
-MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
-PROMPT_FILE = "/workspace/LLM_Engineering/prompts/prompts_mid.txt"
 
-BATCH = 16
-MAX_NEW_TOKENS = 512
-WARMUP = 1
-RUNS = 3
+def get_args():
+    parser = argparse.ArgumentParser(description="TensorRT-LLM Benchmark")
+    parser.add_argument("--engine_dir", type=str, required=True)
+    parser.add_argument("--model_id", type=str, required=True)
+    parser.add_argument("--prompts", type=str, required=True)
+    parser.add_argument("--batch_size", type=str, default="1,2,4,8,16")
+    parser.add_argument("--max_new_tokens", type=int, default=512)
+    parser.add_argument("--warmup", type=int, default=1)
+    parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument("--out_csv", type=str, default="trt_results.csv")
+    parser.add_argument("--backend", type=str, default="TensorRT-LLM")
+    return parser.parse_args()
+
+
+def parse_batch_sizes(s):
+    return [int(x.strip()) for x in s.split(",") if x.strip()]
 
 
 def load_prompts(path: str):
@@ -31,8 +43,7 @@ def build_batch(prompts, batch_size: int):
 
 
 @torch.no_grad()
-def trt_generate(runner: ModelRunner, batch_input_ids, max_new_tokens: int, end_id: int, pad_id: int):
-    # Deterministic decoding (matches HF do_sample=False behavior)
+def trt_generate(runner, batch_input_ids, max_new_tokens, end_id, pad_id):
     scfg = SamplingConfig(
         end_id=end_id,
         pad_id=pad_id,
@@ -40,68 +51,121 @@ def trt_generate(runner: ModelRunner, batch_input_ids, max_new_tokens: int, end_
         temperature=0.0,
         top_p=1.0,
     )
-    return runner.generate(batch_input_ids=batch_input_ids, sampling_config=scfg)
+    return runner.generate(
+        batch_input_ids=batch_input_ids,
+        sampling_config=scfg,
+    )
 
 
 def main():
+    args = get_args()
+
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required for this benchmark.")
+        raise RuntimeError("CUDA is required for TRT benchmark.")
 
-    prompts = load_prompts(PROMPT_FILE)
-    batch_prompts = build_batch(prompts, BATCH)
+    batch_sizes = parse_batch_sizes(args.batch_size)
+    prompts = load_prompts(args.prompts)
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True)
     tokenizer.padding_side = "left"
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     end_id = tokenizer.eos_token_id
     pad_id = tokenizer.pad_token_id
-    print(f"eos(end_id)={end_id} pad_id={pad_id}")
 
-    inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True)
-    input_ids = inputs["input_ids"].to("cuda")  # [B, S]
+    runner = ModelRunner.from_dir(args.engine_dir)
 
-    # TRT-LLM expects a list of 1D tensors (one per request)
-    batch_input_ids = [input_ids[i] for i in range(input_ids.size(0))]
+    print(f"TRTLLM | model={args.model_id}")
+    print("-" * 90)
 
-    runner = ModelRunner.from_dir(ENGINE_DIR)
+    with open(args.out_csv, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "backend",
+            "model",
+            "batch_size",
+            "avg_ttft",
+            "avg_latency",
+            "tokps_new"
+        ])
 
-    # Warmup
-    for _ in range(WARMUP):
-        _ = trt_generate(runner, batch_input_ids, max_new_tokens=min(8, MAX_NEW_TOKENS), end_id=end_id, pad_id=pad_id)
+        for BATCH in batch_sizes:
 
-    # TTFT≈ via 1-token generate
-    ttft_list = []
-    for _ in range(RUNS):
-        torch.cuda.synchronize()
-        t0 = time.perf_counter()
-        _ = trt_generate(runner, batch_input_ids, max_new_tokens=1, end_id=end_id, pad_id=pad_id)
-        torch.cuda.synchronize()
-        t1 = time.perf_counter()
-        ttft_list.append(t1 - t0)
+            batch_prompts = build_batch(prompts, BATCH)
 
-    # Full run throughput
-    lat_list = []
-    tokps_new_list = []
-    for _ in range(RUNS):
-        torch.cuda.synchronize()
-        s0 = time.perf_counter()
-        _ = trt_generate(runner, batch_input_ids, max_new_tokens=MAX_NEW_TOKENS, end_id=end_id, pad_id=pad_id)
-        torch.cuda.synchronize()
-        s1 = time.perf_counter()
+            inputs = tokenizer(
+                batch_prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True
+            )
+            input_ids = inputs["input_ids"].to("cuda")
+            batch_input_ids = [input_ids[i] for i in range(input_ids.size(0))]
 
-        elapsed = s1 - s0
-        lat_list.append(elapsed)
-        tokps_new_list.append((BATCH * MAX_NEW_TOKENS) / elapsed)
+            # Warmup
+            for _ in range(args.warmup):
+                _ = trt_generate(
+                    runner,
+                    batch_input_ids,
+                    min(8, args.max_new_tokens),
+                    end_id,
+                    pad_id
+                )
 
-    avg_ttft = sum(ttft_list) / len(ttft_list)
-    avg_lat = sum(lat_list) / len(lat_list)
-    avg_tokps_new = sum(tokps_new_list) / len(tokps_new_list)
+            ttft_list = []
+            lat_list = []
+            tokps_list = []
 
-    print(f"TRTLLM | model={MODEL_ID} | engine={ENGINE_DIR}")
-    print(f"batch={BATCH} | max_new_tokens={MAX_NEW_TOKENS} | runs={RUNS}")
-    print(f"avg_ttft≈ {avg_ttft:.6f}s | avg_latency {avg_lat:.6f}s | tok/s(new) {avg_tokps_new:.3f}")
+            for _ in range(args.runs):
+
+                # TTFT
+                torch.cuda.synchronize()
+                t0 = time.perf_counter()
+                _ = trt_generate(runner, batch_input_ids, 1, end_id, pad_id)
+                torch.cuda.synchronize()
+                t1 = time.perf_counter()
+                ttft_list.append(t1 - t0)
+
+                # Full decode
+                torch.cuda.synchronize()
+                s0 = time.perf_counter()
+                _ = trt_generate(
+                    runner,
+                    batch_input_ids,
+                    args.max_new_tokens,
+                    end_id,
+                    pad_id
+                )
+                torch.cuda.synchronize()
+                s1 = time.perf_counter()
+
+                elapsed = s1 - s0
+                lat_list.append(elapsed)
+                tokps_list.append((BATCH * args.max_new_tokens) / elapsed)
+
+            avg_ttft = sum(ttft_list) / len(ttft_list)
+            avg_lat = sum(lat_list) / len(lat_list)
+            avg_tokps = sum(tokps_list) / len(tokps_list)
+
+            print(
+                f"[{BATCH}] "
+                f"avg_ttft: {avg_ttft:.6f} | "
+                f"avg_latency: {avg_lat:.6f} | "
+                f"tok/s(new): {avg_tokps:.3f}"
+            )
+
+            writer.writerow([
+                args.backend,
+                args.model_id,
+                BATCH,
+                f"{avg_ttft:.6f}",
+                f"{avg_lat:.6f}",
+                f"{avg_tokps:.6f}"
+            ])
+
+    print("-" * 90)
+    print(f"Wrote CSV to: {args.out_csv}")
 
 
 if __name__ == "__main__":
