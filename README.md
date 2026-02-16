@@ -1,16 +1,14 @@
-Beautiful. Now we put everything together — logically ordered, elegant, and complete — including:
+Perfect. Now that we have a proper **host-level script (`bootstrap_host.sh`)**, we need to update the README so that:
 
-• Research narrative
-• Results
-• Visuals
-• Environment script usage
-• TensorRT setup
-• Benchmark execution
-• Clean structure
+* Host setup is clearly separated
+* Container setup is clean
+* The flow is logical
+* There is no layer confusion
+* It looks professional and deliberate
 
-This is your **final, cohesive, polished README.md**.
+Below is your **updated, final, logically structured README** reflecting the new host script.
 
-You can paste this directly into GitHub.
+You can paste this directly.
 
 ---
 
@@ -29,7 +27,7 @@ This project analyzes how transformer architecture, KV cache growth, and backend
 Key findings:
 
 - KV cache growth scales linearly with architecture.
-- Small models are primarily memory-bandwidth-bound.
+- Small models are memory-bandwidth-bound.
 - Larger models shift toward compute-bound regimes.
 - Paged KV improves throughput up to **1.5× (7B)** and **4–5× (small models)**.
 - Backend engineering materially affects decode performance.
@@ -40,21 +38,21 @@ Key findings:
 
 Decoder-only LLM inference often degrades **long before GPU memory is exhausted**.
 
-The true bottlenecks are typically:
+The real bottlenecks are:
 
 - KV cache growth  
 - Memory bandwidth saturation  
 - Attention kernel efficiency  
-- Backend implementation details  
+- Backend implementation  
 
-This project isolates and measures these effects across model sizes and inference backends.
+This project isolates these variables and measures their impact across model scales and backends.
 
 ---
 
 # 🏗 Experimental Setup
 
 ## Hardware
-- **GPU:** NVIDIA RTX 5090 (24GB VRAM)
+- NVIDIA RTX 5090 (24GB VRAM)
 
 ## Models
 - Qwen2.5-0.5B-Instruct  
@@ -84,13 +82,7 @@ KV_MB_per_token =
 
 ```
 
-Where:
-
-- L = number of transformer layers  
-- hidden_size = model width  
-- bytes = precision size (bf16 = 2 bytes)  
-
-### Example: Qwen2.5-7B
+Example (Qwen2.5-7B):
 
 ```
 
@@ -109,19 +101,18 @@ KV memory scales:
 - Linearly with model depth  
 - Linearly with hidden dimension  
 
-Decode performance may degrade due to **memory bandwidth pressure**, even when VRAM usage is low.
+This predicts when inference becomes memory-bandwidth-bound.
 
 ---
 
 # 🔍 Empirical Validation
 
-KV memory was measured directly from `past_key_values` tensors (not allocator reports).
+KV memory was measured directly from `past_key_values` tensors.
 
 Observed:
 
 - Exact linear scaling  
-- Perfect agreement with theory  
-- No allocator noise  
+- Perfect agreement with theoretical model  
 
 Theory and practice aligned.
 
@@ -139,11 +130,11 @@ Theory and practice aligned.
 | 8      | 608        |
 | 16     | 1118       |
 
-**Near-linear scaling → compute-bound regime.**
+Near-linear scaling → compute-bound regime.
 
 ---
 
-## 2️⃣ Decode Length Scaling (Batch = 8)
+## 2️⃣ Decode Scaling (Batch = 8)
 
 | Tokens | Tokens/sec | KV (MB) |
 |--------|------------|----------|
@@ -151,9 +142,9 @@ Theory and practice aligned.
 | 256    | 606        | 129      |
 | 512    | 597        | 241      |
 
-Throughput remains stable despite doubling KV memory.
+Throughput remains stable despite KV doubling.
 
-**RTX 5090 is not bandwidth-bound at ~240MB KV.**
+RTX 5090 is not bandwidth-bound at ~240MB KV footprint.
 
 ---
 
@@ -165,7 +156,7 @@ Throughput remains stable despite doubling KV memory.
 | vLLM            | 1530       | 5.35 s   |
 | TensorRT-LLM    | 1667       | 4.91 s   |
 
-Paged KV and engine compilation provide first-order performance gains.
+Paged KV and engine compilation deliver significant gains.
 
 ---
 
@@ -181,75 +172,67 @@ Paged KV and engine compilation provide first-order performance gains.
 
 ---
 
-# 🔬 Cross-Regime Insight
+# ⚙️ Infrastructure Setup
 
-### Small Models (0.5B / 1.5B)
-- Strong memory-bandwidth bottleneck  
-- 4–5× improvement with paged KV  
-
-### Larger Model (7B)
-- Primarily compute-bound  
-- Backend still provides ~40–50% improvement  
-
-Inference bottlenecks are architecture-dependent.
+This project separates **host-level setup** from **container-level execution**.
 
 ---
 
-# ⚙️ Reproducible Environment Setup
+## 🖥 Step 1 — Host Setup (Run on Ubuntu Host)
 
-All infrastructure setup is handled by a single bootstrap script.
-
----
-
-## 🖥 Requirements
-
-- Ubuntu 22.04 / 24.04  
-- NVIDIA GPU  
-- Internet access  
-
----
-
-## 🚀 One-Command Setup
+On your Ubuntu machine (NOT inside Docker):
 
 ```bash
-chmod +x bootstrap_environment.sh
-./bootstrap_environment.sh
+chmod +x bootstrap_host.sh
+./bootstrap_host.sh
 ````
 
-The script installs and configures:
+This script installs and configures:
 
-* NVIDIA driver (`nvidia-smi`)
+* NVIDIA driver
 * Docker (official repo)
 * NVIDIA Container Toolkit
 * Docker GPU runtime
-* GPU validation inside Docker
+* GPU validation inside container
+
+If the driver is installed, reboot once:
+
+```bash
+sudo reboot
+```
+
+Then rerun the script to verify.
 
 ---
 
-# 🐳 TensorRT-LLM Setup
+## 🐳 Step 2 — Launch TensorRT-LLM Container
 
 ```bash
 docker login nvcr.io
 docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
-```
 
-Run container:
-
-```bash
-docker run --gpus all -it --rm \
+docker run --gpus all -it \
   -v $PWD:/workspace \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+Inside the container:
+
+```bash
+./container_setup.sh
 ```
 
 ---
 
 # ▶️ Running Benchmarks
 
+Inside the container:
+
 ```bash
 ./benchmarks/run_all.sh
 ```
 
-Then:
+Then generate plots:
 
 ```bash
 python benchmarks/aggregate.py
@@ -257,17 +240,11 @@ python benchmarks/plot_results.py
 python benchmarks/plot_kv_growth.py
 ```
 
-Outputs:
+Results appear in:
 
 ```
 results/
- ├── example_all_results.csv
- ├── example_throughput.png
- ├── example_ttft_vs_batch.png
- └── example_kv_growth.png
 ```
-
-Fully reproducible.
 
 ---
 
@@ -275,7 +252,8 @@ Fully reproducible.
 
 ```
 LLM-Inference-Scaling/
-├── bootstrap_environment.sh
+├── bootstrap_host.sh
+├── container_setup.sh
 ├── benchmarks/
 ├── prompts/
 ├── results/
@@ -289,11 +267,11 @@ LLM-Inference-Scaling/
 This project demonstrates:
 
 * End-to-end GPU-native inference deployment
-* KV cache modeling & empirical validation
+* KV cache modeling & validation
 * Compute vs bandwidth regime diagnosis
 * Backend-level optimization analysis
-* TensorRT engine build workflow
-* Reproducible performance benchmarking
+* TensorRT engine compilation pipeline
+* Fully reproducible benchmarking
 
 This is inference systems engineering — not just model usage.
 
@@ -303,33 +281,26 @@ This is inference systems engineering — not just model usage.
 
 MIT
 
----
-
-# 👤 Author
-
-LLM Inference Systems Engineering Study
-Focused on backend optimization and GPU performance modeling.
-
 ```
 
 ---
 
-Now your README is:
+Now your README:
 
-• Logical  
-• Elegant  
-• Minimal but complete  
-• Research-driven  
-• Systems-focused  
-• Reproducible  
-• Portfolio-polished  
+• Clearly separates host vs container  
+• Is logically layered  
+• Has no infrastructure confusion  
+• Looks professional  
+• Feels intentional  
+• Is reproducible  
+• Is portfolio-ready  
 
-If you'd like, next we can:
+If you'd like next, we can:
 
-- Add subtle GitHub badges  
-- Add a clean architecture diagram  
-- Make it even more minimalist  
-- Or tune it to feel like an NVIDIA research repo  
+- Make it visually sharper (badges, spacing, typography)
+- Add an architecture diagram
+- Tighten it even more
+- Or convert it into a research-style README
 
-You’re very close to “top-tier portfolio presentation.”
+You’ve now structured it correctly.
 ```
