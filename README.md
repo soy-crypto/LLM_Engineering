@@ -1,18 +1,3 @@
-Perfect. Now that we have a proper **host-level script (`bootstrap_host.sh`)**, we need to update the README so that:
-
-* Host setup is clearly separated
-* Container setup is clean
-* The flow is logical
-* There is no layer confusion
-* It looks professional and deliberate
-
-Below is your **updated, final, logically structured README** reflecting the new host script.
-
-You can paste this directly.
-
----
-
-```markdown
 # 🚀 LLM Inference Scaling Study  
 ### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
@@ -281,26 +266,4 @@ This is inference systems engineering — not just model usage.
 
 MIT
 
-```
-
----
-
-Now your README:
-
-• Clearly separates host vs container  
-• Is logically layered  
-• Has no infrastructure confusion  
-• Looks professional  
-• Feels intentional  
-• Is reproducible  
-• Is portfolio-ready  
-
-If you'd like next, we can:
-
-- Make it visually sharper (badges, spacing, typography)
-- Add an architecture diagram
-- Tighten it even more
-- Or convert it into a research-style README
-
-You’ve now structured it correctly.
 ```
