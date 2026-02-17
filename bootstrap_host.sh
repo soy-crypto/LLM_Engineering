@@ -48,8 +48,17 @@ if command -v nvidia-smi &> /dev/null; then
   echo "✅ NVIDIA driver already installed."
 else
   echo "🔧 Installing NVIDIA driver..."
+
   $SUDO apt update
+  $SUDO apt install -y ubuntu-drivers-common
+
+  if ! command -v ubuntu-drivers &> /dev/null; then
+    echo "❌ ubuntu-drivers not available after install."
+    exit 1
+  fi
+
   $SUDO ubuntu-drivers autoinstall
+
   echo ""
   echo "⚠️ Driver installed. Please reboot:"
   echo "    sudo reboot"
@@ -57,7 +66,7 @@ else
 fi
 
 echo "🔍 Verifying nvidia-smi..."
-nvidia-smi || { echo "❌ Driver not working."; exit 1; }
+nvidia-smi || { echo "❌ Driver not functioning properly."; exit 1; }
 
 # -------------------------------------------------
 # 4️⃣ Install Docker (if missing)
@@ -94,21 +103,24 @@ echo "🔍 Docker version:"
 docker --version
 
 # -------------------------------------------------
-# 5️⃣ Install NVIDIA Container Toolkit
+# 5️⃣ Install NVIDIA Container Toolkit (Correct Method)
 # -------------------------------------------------
 if dpkg -l | grep -q nvidia-container-toolkit; then
   echo "✅ NVIDIA Container Toolkit already installed."
 else
   echo "🔧 Installing NVIDIA Container Toolkit..."
 
-  distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+  $SUDO rm -f /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    $SUDO tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
     $SUDO gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 
-  curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    $SUDO tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  $SUDO sed -i \
+  's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
   $SUDO apt update
   $SUDO apt install -y nvidia-container-toolkit
@@ -116,6 +128,8 @@ else
   $SUDO nvidia-ctk runtime configure --runtime=docker
   $SUDO systemctl restart docker
 fi
+
+
 
 # -------------------------------------------------
 # 6️⃣ Verify GPU inside Docker
