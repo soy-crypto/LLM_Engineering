@@ -1,4 +1,20 @@
-# 🚀 LLM Inference Scaling Study  
+Perfect.
+
+Here is a **clean, production-grade, GitHub README format** — structured for:
+
+* Hiring managers
+* Infra engineers
+* GPU engineers
+* OSS readers
+
+No fluff. Clear signal. Strong positioning.
+
+You can paste this directly into `README.md`.
+
+---
+
+# 🚀 LLM Inference Scaling Study
+
 ### KV Cache Dynamics · Memory Bandwidth Bottlenecks · Backend Optimization
 
 > A backend-aware investigation of compute-bound vs memory-bandwidth-bound regimes in decoder-only LLM inference, with reproducible GPU-native deployment and cross-backend benchmarking.
@@ -7,190 +23,202 @@
 
 ## 🎯 Executive Summary
 
-This project analyzes how transformer architecture, KV cache growth, and backend implementation determine real-world LLM inference performance.
+This project analyzes how transformer architecture, KV cache growth, and backend implementation determine real-world LLM decode performance.
 
-Key findings:
+### Key Findings
 
-- KV cache growth scales linearly with architecture.
-- Small models are memory-bandwidth-bound.
-- Larger models shift toward compute-bound regimes.
-- Paged KV improves throughput up to **1.5× (7B)** and **4–5× (small models)**.
-- Backend engineering materially affects decode performance.
+* KV cache growth scales linearly with model depth, hidden size, batch, and decode length.
+* Small models are primarily **memory-bandwidth-bound**.
+* Larger models (7B) shift toward **compute-bound** regimes.
+* Paged KV improves throughput:
 
----
-
-# 📌 Motivation
-
-Decoder-only LLM inference often degrades **long before GPU memory is exhausted**.
-
-The real bottlenecks are:
-
-- KV cache growth  
-- Memory bandwidth saturation  
-- Attention kernel efficiency  
-- Backend implementation  
-
-This project isolates these variables and measures their impact across model scales and backends.
+  * **4–5×** for small models
+  * **~1.5×** for 7B
+* Backend engineering (kernel fusion, scheduling, memory layout) materially impacts decode throughput.
 
 ---
 
-# 🏗 Experimental Setup
+## 📌 Motivation
 
-## Hardware
-- NVIDIA RTX 5090 (24GB VRAM)
+Decoder-only LLM inference often degrades **long before VRAM capacity is exhausted**.
 
-## Models
-- Qwen2.5-0.5B-Instruct  
-- Qwen2.5-1.5B  
-- Qwen2.5-7B  
+The dominant constraints are:
+
+* KV cache growth
+* Memory bandwidth saturation
+* Attention kernel efficiency
+* Backend implementation strategy
+
+This project isolates these variables and quantifies their impact across model scales and execution backends.
+
+---
+
+## 🏗 Experimental Setup
+
+### Hardware
+
+* NVIDIA RTX 5090 (24GB VRAM)
+
+### Models
+
+* Qwen2.5-0.5B-Instruct
+* Qwen2.5-1.5B
+* Qwen2.5-7B
 
 Precision: **bfloat16**
 
-## Backends Compared
+### Backends Compared
 
-| Backend        | KV Strategy | Execution Model      |
-|---------------|------------|----------------------|
-| HuggingFace   | Static KV  | PyTorch eager        |
-| vLLM          | Paged KV   | Custom CUDA kernels  |
-| TensorRT-LLM  | Paged KV   | Engine-compiled CUDA |
+| Backend      | KV Strategy | Execution Model      |
+| ------------ | ----------- | -------------------- |
+| HuggingFace  | Static KV   | PyTorch eager        |
+| vLLM         | Paged KV    | Custom CUDA kernels  |
+| TensorRT-LLM | Paged KV    | Engine-compiled CUDA |
 
 ---
 
-# 🧠 Theoretical KV Cache Model
+## 🧠 Theoretical KV Cache Model
 
 For decoder-only transformers:
 
 ```
-
 KV_MB_per_token =
 (2 × L × hidden_size × bytes) / 1024²
-
 ```
 
-Example (Qwen2.5-7B):
+Where:
+
+* `L` = number of layers
+* `hidden_size` = model width
+* `bytes` = precision size (bf16 = 2 bytes)
+
+### Example (Qwen2.5-7B)
 
 ```
-
 ≈ 0.3828 MB per token (batch = 1)
-
-````
+```
 
 ---
 
 ## 📐 Architectural Implications
 
-KV memory scales:
+KV memory scales linearly with:
 
-- Linearly with batch size  
-- Linearly with generated tokens  
-- Linearly with model depth  
-- Linearly with hidden dimension  
+* Batch size
+* Generated tokens
+* Model depth
+* Hidden dimension
 
-This predicts when inference becomes memory-bandwidth-bound.
+This model predicts when inference transitions from compute-bound to bandwidth-bound.
 
 ---
 
-# 🔍 Empirical Validation
+## 🔍 Empirical Validation
 
-KV memory was measured directly from `past_key_values` tensors.
+KV memory was measured directly from `past_key_values` tensors (not allocator statistics).
 
 Observed:
 
-- Exact linear scaling  
-- Perfect agreement with theoretical model  
+* Exact linear scaling
+* Perfect agreement with theoretical formula
 
-Theory and practice aligned.
+Theory and measurement aligned.
 
 ---
 
-# 📊 Results
+## 📊 Results
 
-## 1️⃣ Batch Scaling (7B, 128 tokens)
+### 1️⃣ Batch Scaling (7B, 128 tokens)
 
 | Batch | Tokens/sec |
-|--------|------------|
-| 1      | 80         |
-| 2      | 155        |
-| 4      | 308        |
-| 8      | 608        |
-| 16     | 1118       |
+| ----- | ---------- |
+| 1     | 80         |
+| 2     | 155        |
+| 4     | 308        |
+| 8     | 608        |
+| 16    | 1118       |
 
-Near-linear scaling → compute-bound regime.
+Near-linear scaling → **compute-bound regime**.
 
 ---
 
-## 2️⃣ Decode Scaling (Batch = 8)
+### 2️⃣ Decode Scaling (Batch = 8)
 
 | Tokens | Tokens/sec | KV (MB) |
-|--------|------------|----------|
-| 128    | 607        | 73       |
-| 256    | 606        | 129      |
-| 512    | 597        | 241      |
+| ------ | ---------- | ------- |
+| 128    | 607        | 73      |
+| 256    | 606        | 129     |
+| 512    | 597        | 241     |
 
 Throughput remains stable despite KV doubling.
 
-RTX 5090 is not bandwidth-bound at ~240MB KV footprint.
+RTX 5090 does not saturate memory bandwidth at ~240MB KV footprint.
 
 ---
 
-## 3️⃣ Backend Comparison (7B, Batch = 16, 512 tokens)
+### 3️⃣ Backend Comparison (7B, Batch = 16, 512 tokens)
 
-| Backend         | Tokens/sec | Latency |
-|----------------|------------|----------|
-| HF eager        | 1110       | 7.38 s   |
-| vLLM            | 1530       | 5.35 s   |
-| TensorRT-LLM    | 1667       | 4.91 s   |
+| Backend      | Tokens/sec | Latency |
+| ------------ | ---------- | ------- |
+| HF eager     | 1110       | 7.38 s  |
+| vLLM         | 1530       | 5.35 s  |
+| TensorRT-LLM | 1667       | 4.91 s  |
 
 Paged KV and engine compilation deliver significant gains.
 
 ---
 
-## 📈 Throughput Scaling
+## 📈 Example Plots
 
-![Throughput Scaling](results/example_throughput.png)
+Throughput scaling:
+
+```
+results/throughput_vs_batch.png
+```
+
+TTFT scaling:
+
+```
+results/ttft_vs_batch.png
+```
+
+KV growth validation:
+
+```
+results/kv_growth.png
+```
 
 ---
 
-## ⏱ TTFT Scaling
+## ⚙️ Infrastructure Setup
 
-![TTFT Scaling](results/example_ttft_vs_batch.png)
+This repository separates:
 
----
-
-# ⚙️ Infrastructure Setup
-
-This project separates **host-level setup** from **container-level execution**.
+* Host provisioning
+* Containerized execution
+* Benchmark orchestration
 
 ---
 
-## 🖥 Step 1 — Host Setup (Run on Ubuntu Host)
-
-On your Ubuntu machine (NOT inside Docker):
+### 🖥 Step 1 — Host Setup (Ubuntu)
 
 ```bash
 chmod +x bootstrap_host.sh
 ./bootstrap_host.sh
-````
-
-This script installs and configures:
-
-* NVIDIA driver
-* Docker (official repo)
-* NVIDIA Container Toolkit
-* Docker GPU runtime
-* GPU validation inside container
-
-If the driver is installed, reboot once:
-
-```bash
-sudo reboot
 ```
 
-Then rerun the script to verify.
+Installs and configures:
+
+* NVIDIA driver
+* Docker (official repository)
+* NVIDIA Container Toolkit
+* GPU runtime validation
+
+Reboot once if drivers were newly installed.
 
 ---
 
-## 🐳 Step 2 — Launch TensorRT-LLM Container
+### 🐳 Step 2 — Launch TensorRT-LLM Container
 
 ```bash
 docker login nvcr.io
@@ -201,23 +229,23 @@ docker run --gpus all -it \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
-Inside the container:
+Inside container:
 
 ```bash
-./benchmarks/boostrap.sh
+./benchmarks/bootstrap.sh
 ```
 
 ---
 
-# ▶️ Running Benchmarks
+## ▶️ Running Benchmarks
 
-Inside the container:
+Inside container:
 
 ```bash
 ./benchmarks/run_all.sh
 ```
 
-Then generate plots:
+Generate plots:
 
 ```bash
 python benchmarks/aggregate.py
@@ -225,21 +253,15 @@ python benchmarks/plot_results.py
 python benchmarks/plot_kv_growth.py
 ```
 
-Results appear in:
+Results are stored in:
 
 ```
 results/
-
 ```
-
-<img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/1cca29c8-4d0c-4990-b7fb-7dccbae68422" />
-
-<img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/c8300222-193d-4392-bdc5-e5d0044eb47f" />
-
 
 ---
 
-# 📂 Project Structure
+## 📂 Project Structure
 
 ```
 LLM-Inference-Scaling/
@@ -253,7 +275,7 @@ LLM-Inference-Scaling/
 
 ---
 
-# 🏁 Engineering Takeaways
+## 🏁 Engineering Takeaways
 
 This project demonstrates:
 
@@ -261,15 +283,13 @@ This project demonstrates:
 * KV cache modeling & validation
 * Compute vs bandwidth regime diagnosis
 * Backend-level optimization analysis
-* TensorRT engine compilation pipeline
+* TensorRT engine compilation workflow
 * Fully reproducible benchmarking
 
-This is inference systems engineering — not just model usage.
+This is **inference systems engineering**, not just model usage.
 
 ---
 
-# 📄 License
+## 📄 License
 
 MIT
-
-```
