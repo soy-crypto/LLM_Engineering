@@ -204,7 +204,7 @@ docker run --gpus all -it \
 Inside the container:
 
 ```bash
-./container_setup.sh
+./benchmarks/boostrap.sh
 ```
 
 ---
