@@ -7,6 +7,8 @@ MODEL_ID="meta-llama/Llama-3.1-8B"
 HF_MODEL_DIR="$PROJECT/hf_models/llama3_1_8b"
 CKPT_DIR="$PROJECT/trt_ckpt/llama3_1_8b_bf16_1gpu"
 ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s2560"
+
+
 #######################################
 # HF venv
 #######################################
