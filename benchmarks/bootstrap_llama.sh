@@ -15,15 +15,17 @@ echo "Setting up benchmark environments"
 echo "================================="
 
 #######################################
-# HF venv
+# HF venv (Pinned versions for stability)
 #######################################
 if [ ! -d "$PROJECT/.venv_hf" ]; then
     echo "Creating HF venv..."
     $PYTHON_BIN -m venv "$PROJECT/.venv_hf"
     source "$PROJECT/.venv_hf/bin/activate"
+
     pip install --upgrade pip
     pip install torch --index-url https://download.pytorch.org/whl/cu121
-    pip install transformers huggingface_hub
+    pip install transformers==4.40.2 huggingface_hub
+
     deactivate
 fi
 
@@ -34,18 +36,22 @@ if [ ! -d "$PROJECT/.venv_vllm" ]; then
     echo "Creating vLLM venv..."
     $PYTHON_BIN -m venv "$PROJECT/.venv_vllm"
     source "$PROJECT/.venv_vllm/bin/activate"
+
     pip install --upgrade pip
     pip install torch --index-url https://download.pytorch.org/whl/cu121
-    pip install vllm transformers
+    pip install vllm transformers==4.40.2
+
     deactivate
 fi
 
 #######################################
-# HuggingFace Login Check
+# HuggingFace Token Check
 #######################################
-echo "Ensure you have logged in:"
-echo "Run: huggingface-cli login"
-echo "Llama models require access approval."
+if [ -z "$HF_TOKEN" ]; then
+    echo "ERROR: HF_TOKEN not set."
+    echo "Run: export HF_TOKEN=your_read_token"
+    exit 1
+fi
 
 #######################################
 # Model Download
@@ -55,35 +61,43 @@ if [ ! -d "$HF_MODEL_DIR" ]; then
     mkdir -p "$PROJECT/hf_models"
 
     source "$PROJECT/.venv_hf/bin/activate"
+
     python - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="$MODEL_ID",
     local_dir="$HF_MODEL_DIR",
+    token="$HF_TOKEN",
     local_dir_use_symlinks=False
 )
 EOF
-    deactivate
 
+    deactivate
     echo "Model download complete."
 else
     echo "Model already exists."
 fi
 
 ########################################
-# TensorRT-LLM Bootstrap (bf16)
+# TensorRT-LLM Check
 ########################################
-
-# Ensure running inside TRT container
 if ! python3 -c "import tensorrt_llm" 2>/dev/null; then
     echo "ERROR: Must run inside NVIDIA TensorRT-LLM container."
     exit 1
 fi
 
-########################################
-# Convert HF → TRT Checkpoint (Llama)
-########################################
+echo "TensorRT-LLM version:"
+python3 -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
 
+########################################
+# Print HF Config (Debug Safety)
+########################################
+echo "Model config preview:"
+cat "$HF_MODEL_DIR/config.json" | head -n 40
+
+########################################
+# Convert HF → TRT Checkpoint
+########################################
 if [ ! -f "$CKPT_DIR/config.json" ]; then
     echo "Converting HF → TRT checkpoint (bf16)..."
     mkdir -p "$CKPT_DIR"
@@ -97,7 +111,6 @@ fi
 ########################################
 # Build TensorRT Engine
 ########################################
-
 if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
     echo "Building TensorRT engine (bf16)..."
     mkdir -p "$ENGINE_DIR"
