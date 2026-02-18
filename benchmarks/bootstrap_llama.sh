@@ -7,6 +7,31 @@ MODEL_ID="meta-llama/Llama-3.1-8B"
 HF_MODEL_DIR="$PROJECT/hf_models/llama3_1_8b"
 CKPT_DIR="$PROJECT/trt_ckpt/llama3_1_8b_bf16_1gpu"
 ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s2560"
+#######################################
+# HF venv
+#######################################
+if [ ! -d "$PROJECT/.venv_hf" ]; then
+    echo "Creating HF venv..."
+    $PYTHON_BIN -m venv "$PROJECT/.venv_hf"
+    source "$PROJECT/.venv_hf/bin/activate"
+    pip install --upgrade pip
+    pip install torch --index-url https://download.pytorch.org/whl/cu121
+    pip install transformers huggingface_hub
+    deactivate
+fi
+
+#######################################
+# vLLM venv
+#######################################
+if [ ! -d "$PROJECT/.venv_vllm" ]; then
+    echo "Creating vLLM venv..."
+    $PYTHON_BIN -m venv "$PROJECT/.venv_vllm"
+    source "$PROJECT/.venv_vllm/bin/activate"
+    pip install --upgrade pip
+    pip install torch --index-url https://download.pytorch.org/whl/cu121
+    pip install vllm transformers
+    deactivate
+fi
 
 echo "================================="
 echo "TensorRT-LLM Bootstrap (Llama-3.1-8B)"
