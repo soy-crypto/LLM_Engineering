@@ -2,67 +2,42 @@
 set -e
 
 PROJECT="/workspace/LLM_Engineering"
-PYTHON_BIN="python3"
+MODEL_ID="meta-llama/Llama-3.1-8B"
 
-MODEL_ID="meta-llama/Meta-Llama-Guard-2-8B"
-HF_MODEL_DIR="$PROJECT/hf_models/llama_guard_2_8b"
-
-CKPT_DIR="$PROJECT/trt_ckpt/llama_guard_2_8b_bf16_1gpu"
-ENGINE_DIR="$PROJECT/trt_engine/llama_guard_2_8b_bf16_b16_s2560"
+HF_MODEL_DIR="$PROJECT/hf_models/llama3_1_8b"
+CKPT_DIR="$PROJECT/trt_ckpt/llama3_1_8b_bf16_1gpu"
+ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s2560"
 
 echo "================================="
-echo "Setting up benchmark environments"
+echo "TensorRT-LLM Bootstrap (Llama-3.1-8B)"
 echo "================================="
 
-#######################################
-# HF venv (Pinned versions for stability)
-#######################################
-if [ ! -d "$PROJECT/.venv_hf" ]; then
-    echo "Creating HF venv..."
-    $PYTHON_BIN -m venv "$PROJECT/.venv_hf"
-    source "$PROJECT/.venv_hf/bin/activate"
-
-    pip install --upgrade pip
-    pip install torch --index-url https://download.pytorch.org/whl/cu121
-    pip install transformers==4.40.2 huggingface_hub
-
-    deactivate
-fi
-
-#######################################
-# vLLM venv
-#######################################
-if [ ! -d "$PROJECT/.venv_vllm" ]; then
-    echo "Creating vLLM venv..."
-    $PYTHON_BIN -m venv "$PROJECT/.venv_vllm"
-    source "$PROJECT/.venv_vllm/bin/activate"
-
-    pip install --upgrade pip
-    pip install torch --index-url https://download.pytorch.org/whl/cu121
-    pip install vllm transformers==4.40.2
-
-    deactivate
-fi
-
-#######################################
-# HuggingFace Token Check
-#######################################
+############################################
+# 1️⃣ Require HF Token
+############################################
 if [ -z "$HF_TOKEN" ]; then
     echo "ERROR: HF_TOKEN not set."
-    echo "Run: export HF_TOKEN=your_read_token"
+    echo "Run on host:"
+    echo "export HF_TOKEN=your_read_token"
     exit 1
 fi
 
-#######################################
-# Model Download
-#######################################
+############################################
+# 2️⃣ Clean incomplete model folder
+############################################
+if [ -d "$HF_MODEL_DIR" ] && [ ! -f "$HF_MODEL_DIR/config.json" ]; then
+    echo "Incomplete model detected. Cleaning..."
+    rm -rf "$HF_MODEL_DIR"
+fi
+
+############################################
+# 3️⃣ Download model
+############################################
 if [ ! -d "$HF_MODEL_DIR" ]; then
     echo "Downloading model: $MODEL_ID"
     mkdir -p "$PROJECT/hf_models"
 
-    source "$PROJECT/.venv_hf/bin/activate"
-
-    python - <<EOF
+    python3 - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="$MODEL_ID",
@@ -72,15 +47,14 @@ snapshot_download(
 )
 EOF
 
-    deactivate
     echo "Model download complete."
 else
     echo "Model already exists."
 fi
 
-########################################
-# TensorRT-LLM Check
-########################################
+############################################
+# 4️⃣ Ensure running inside TRT container
+############################################
 if ! python3 -c "import tensorrt_llm" 2>/dev/null; then
     echo "ERROR: Must run inside NVIDIA TensorRT-LLM container."
     exit 1
@@ -89,15 +63,17 @@ fi
 echo "TensorRT-LLM version:"
 python3 -c "import tensorrt_llm; print(tensorrt_llm.__version__)"
 
-########################################
-# Print HF Config (Debug Safety)
-########################################
-echo "Model config preview:"
-cat "$HF_MODEL_DIR/config.json" | head -n 40
+############################################
+# 5️⃣ Verify config integrity
+############################################
+if ! grep -q "architectures" "$HF_MODEL_DIR/config.json"; then
+    echo "ERROR: architectures field missing in config.json"
+    exit 1
+fi
 
-########################################
-# Convert HF → TRT Checkpoint
-########################################
+############################################
+# 6️⃣ Convert HF → TRT checkpoint
+############################################
 if [ ! -f "$CKPT_DIR/config.json" ]; then
     echo "Converting HF → TRT checkpoint (bf16)..."
     mkdir -p "$CKPT_DIR"
@@ -108,18 +84,18 @@ if [ ! -f "$CKPT_DIR/config.json" ]; then
         --dtype bfloat16
 fi
 
-########################################
-# Build TensorRT Engine
-########################################
+############################################
+# 7️⃣ Build TensorRT engine
+############################################
 if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
-    echo "Building TensorRT engine (bf16)..."
+    echo "Building TensorRT engine (bf16, paged KV)..."
     mkdir -p "$ENGINE_DIR"
 
     trtllm-build \
         --checkpoint_dir "$CKPT_DIR" \
         --output_dir "$ENGINE_DIR" \
         --max_batch_size 16 \
-        --max_seq_len 2560 \
+        --max_seq_len 8192 \
         --kv_cache_type paged \
         --gemm_plugin bfloat16 \
         --gpt_attention_plugin bfloat16
