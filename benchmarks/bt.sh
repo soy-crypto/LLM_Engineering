@@ -98,6 +98,41 @@ if [ ! -f "$MODEL_DIR/config.json" ]; then
     exit 1
 fi
 
+
+#######################################
+# 6️⃣ TensorRT-LLM Engine Build
+#######################################
+
+TRT_ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16"
+
+if [ ! -d "$TRT_ENGINE_DIR" ]; then
+    echo "================================="
+    echo "Building TensorRT-LLM Engine"
+    echo "================================="
+
+    mkdir -p "$TRT_ENGINE_DIR"
+
+    # Convert HF checkpoint
+    python /opt/tensorrt_llm/examples/llama/convert_checkpoint.py \
+        --model_dir "$MODEL_DIR" \
+        --output_dir "$TRT_ENGINE_DIR" \
+        --dtype bfloat16
+
+    # Build engine
+    trtllm-build \
+        --checkpoint_dir "$TRT_ENGINE_DIR" \
+        --output_dir "$TRT_ENGINE_DIR" \
+        --max_batch_size 8 \
+        --max_input_len 2048 \
+        --max_seq_len 4096 \
+        --gpt_attention_plugin bfloat16 \
+        --gemm_plugin bfloat16
+
+    echo "Engine build complete."
+else
+    echo "TensorRT engine already exists."
+fi
+
 echo "================================="
 echo "✅ Bootstrap complete"
 echo "Model location:"
