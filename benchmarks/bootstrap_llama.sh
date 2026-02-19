@@ -1,156 +1,97 @@
-#!/usr/bin/env bash
-
+#!/bin/bash
 set -e
 
-echo "========================================"
-echo "🚀 LLM Inference Host Setup"
-echo "========================================"
+PROJECT="/workspace/LLM_Engineering"
+PYTHON_BIN="python3"
 
-# -------------------------------------------------
-# 0️⃣ Prevent running inside Docker
-# -------------------------------------------------
-if [ -f /.dockerenv ]; then
-  echo "❌ This script must be run on the HOST machine."
-  echo "You are inside a Docker container."
-  exit 1
+echo "================================="
+echo "Bootstrapping LLaMA 3.1 8B"
+echo "================================="
+
+#######################################
+# HF venv
+#######################################
+if [ ! -d "$PROJECT/.venv_hf" ]; then
+    echo "Creating HF venv..."
+    $PYTHON_BIN -m venv "$PROJECT/.venv_hf"
+    source "$PROJECT/.venv_hf/bin/activate"
+    pip install --upgrade pip
+    pip install torch --index-url https://download.pytorch.org/whl/cu121
+    pip install transformers huggingface_hub
+    deactivate
 fi
 
-# -------------------------------------------------
-# 1️⃣ Check Ubuntu
-# -------------------------------------------------
-if ! grep -qi ubuntu /etc/os-release; then
-  echo "❌ Only Ubuntu 22.04 / 24.04 supported."
-  exit 1
-fi
+#######################################
+# Model Download
+#######################################
+MODEL_ID="meta-llama/Llama-3.1-8B"
+HF_MODEL_DIR="$PROJECT/hf_models/llama3_8b"
 
-echo "✅ Ubuntu detected."
+if [ ! -d "$HF_MODEL_DIR" ]; then
+    echo "Downloading model: $MODEL_ID"
+    mkdir -p "$PROJECT/hf_models"
 
-# -------------------------------------------------
-# 2️⃣ Determine privilege mode
-# -------------------------------------------------
-if [ "$EUID" -eq 0 ]; then
-  SUDO=""
-  echo "ℹ Running as root."
+    source "$PROJECT/.venv_hf/bin/activate"
+    python - <<EOF
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="$MODEL_ID",
+    local_dir="$HF_MODEL_DIR",
+    local_dir_use_symlinks=False
+)
+EOF
+    deactivate
+
+    echo "Model download complete."
 else
-  if command -v sudo &> /dev/null; then
-    SUDO="sudo"
-    echo "ℹ Using sudo."
-  else
-    echo "❌ sudo not found. Run as root or install sudo."
+    echo "Model already exists."
+fi
+
+########################################
+# TRT-LLM Bootstrap
+########################################
+
+CKPT_DIR="$PROJECT/trt_ckpt/llama3_8b_bf16_1gpu"
+ENGINE_DIR="$PROJECT/trt_engine/llama3_8b_bf16_b8_s4096"
+
+# Ensure TRT container
+if ! python3 -c "import tensorrt_llm" 2>/dev/null; then
+    echo "ERROR: Must run inside NVIDIA TensorRT-LLM container."
     exit 1
-  fi
 fi
 
-# -------------------------------------------------
-# 3️⃣ Install NVIDIA Driver (if missing)
-# -------------------------------------------------
-if command -v nvidia-smi &> /dev/null; then
-  echo "✅ NVIDIA driver already installed."
-else
-  echo "🔧 Installing NVIDIA driver..."
+########################################
+# Convert HF → TRT checkpoint
+########################################
 
-  $SUDO apt update
-  $SUDO apt install -y ubuntu-drivers-common
+if [ ! -f "$CKPT_DIR/config.json" ]; then
+    echo "Converting HF → TRT checkpoint (bf16)..."
+    mkdir -p "$CKPT_DIR"
 
-  if ! command -v ubuntu-drivers &> /dev/null; then
-    echo "❌ ubuntu-drivers not available after install."
-    exit 1
-  fi
-
-  $SUDO ubuntu-drivers autoinstall
-
-  echo ""
-  echo "⚠️ Driver installed. Please reboot:"
-  echo "    sudo reboot"
-  exit 0
+    python3 /app/tensorrt_llm/examples/models/core/llama/convert_checkpoint.py \
+        --model_dir "$HF_MODEL_DIR" \
+        --output_dir "$CKPT_DIR" \
+        --dtype bfloat16
 fi
 
-echo "🔍 Verifying nvidia-smi..."
-nvidia-smi || { echo "❌ Driver not functioning properly."; exit 1; }
+########################################
+# Build Engine
+########################################
 
-# -------------------------------------------------
-# 4️⃣ Install Docker (if missing)
-# -------------------------------------------------
-if command -v docker &> /dev/null; then
-  echo "✅ Docker already installed."
-else
-  echo "🔧 Installing Docker..."
+if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
+    echo "Building TensorRT engine (bf16)..."
+    mkdir -p "$ENGINE_DIR"
 
-  $SUDO apt remove -y docker docker-engine docker.io containerd runc || true
-  $SUDO apt update
-  $SUDO apt install -y ca-certificates curl gnupg lsb-release
-
-  $SUDO mkdir -p /etc/apt/keyrings
-
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-    $SUDO gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-  echo \
-  "deb [arch=$(dpkg --print-architecture) \
-  signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | \
-  $SUDO tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-  $SUDO apt update
-  $SUDO apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-  $SUDO systemctl enable docker
-  $SUDO systemctl start docker
+    trtllm-build \
+        --checkpoint_dir "$CKPT_DIR" \
+        --output_dir "$ENGINE_DIR" \
+        --max_batch_size 8 \
+        --max_seq_len 4096 \
+        --kv_cache_type paged \
+        --gemm_plugin bfloat16 \
+        --gpt_attention_plugin bfloat16
 fi
 
-echo "🔍 Docker version:"
-docker --version
-
-# -------------------------------------------------
-# 5️⃣ Install NVIDIA Container Toolkit (Correct Method)
-# -------------------------------------------------
-if dpkg -l | grep -q nvidia-container-toolkit; then
-  echo "✅ NVIDIA Container Toolkit already installed."
-else
-  echo "🔧 Installing NVIDIA Container Toolkit..."
-
-  $SUDO rm -f /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-    $SUDO tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-    $SUDO gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-
-  $SUDO sed -i \
-  's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-  $SUDO apt update
-  $SUDO apt install -y nvidia-container-toolkit
-
-  $SUDO nvidia-ctk runtime configure --runtime=docker
-  $SUDO systemctl restart docker
-fi
-
-
-
-# -------------------------------------------------
-# 6️⃣ Verify GPU inside Docker
-# -------------------------------------------------
-echo "🔍 Testing GPU inside Docker..."
-
-docker run --rm --gpus all nvidia/cuda:12.3.0-base-ubuntu22.04 nvidia-smi
-
-echo ""
-echo "========================================"
-echo "✅ Host environment setup complete."
-echo "========================================"
-echo ""
-echo "Next steps:"
-echo "  docker login nvcr.io"
-echo "  docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3"
-echo "  docker run --gpus all \
-  --memory=28g \
-  --memory-swap=28g \
-  -it \
-  -v $PWD:/workspace \
-  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
-
-"
+echo "================================="
+echo "LLaMA 3.1 8B Bootstrap Complete"
+echo "================================="
