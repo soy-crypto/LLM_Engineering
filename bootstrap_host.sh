@@ -146,4 +146,7 @@ echo ""
 echo "Next steps:"
 echo "  docker login nvcr.io"
 echo "  docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3"
-echo "  docker run --gpus all -it -v \$PWD:/workspace nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3"
+echo "  docker run --gpus all -it \
+  -v $PWD:/workspace \
+  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+"
