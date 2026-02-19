@@ -4,7 +4,7 @@ set -e
 PROJECT="/workspace/LLM_Engineering"
 RESULTS_DIR="$PROJECT/results"
 
-ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s8192"
+ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s4096"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
 BATCH_SIZES="1,2,4,8,16"
