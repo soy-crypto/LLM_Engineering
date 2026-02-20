@@ -42,14 +42,21 @@ fi
 # 2️⃣ Create vLLM venv (if missing)
 #######################################
 if [ ! -d "$VLLM_VENV" ]; then
-    echo "Creating vLLM virtual environment..."
-    $PYTHON_BIN -m venv "$VLLM_VENV"
+    echo "Creating vLLM virtual environment (Python 3.10)..."
+
+    # Force Python 3.10 (required for vLLM stability)
+    python3.10 -m venv "$VLLM_VENV"
 
     source "$VLLM_VENV/bin/activate"
     pip install --upgrade pip
 
+    # Install torch first
     pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-    pip install vllm==0.5.5
+
+    # Install vLLM with full optional deps
+    pip install vllm[all]==0.5.5
+
+    # Match transformers version
     pip install transformers==4.43.3
 
     deactivate
