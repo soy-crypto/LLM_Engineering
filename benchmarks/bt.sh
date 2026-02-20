@@ -14,24 +14,33 @@ HF_VENV="$PROJECT/.venv_hf"
 VLLM_VENV="$PROJECT/.venv_vllm"
 HF_PYTHON="$HF_VENV/bin/python"
 
+CKPT_DIR="$PROJECT/trt_ckpt/llama3_1_8b_bf16_1gpu"
+ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s4096"
+
 echo "================================="
 echo "Bootstrapping LLaMA 3.1 8B"
 echo "================================="
 
+########################################
+# Load .env if exists
+########################################
+if [ -f "$PROJECT/.env" ]; then
+    echo "Loading environment from .env"
+    export $(grep -v '^#' "$PROJECT/.env" | xargs)
+fi
+
 #######################################
-# 0️⃣ Check token
+# Check HuggingFace token
 #######################################
 if [ -z "${HUGGINGFACE_HUB_TOKEN:-}" ]; then
     echo "❌ HUGGINGFACE_HUB_TOKEN not set."
-    echo ""
-    echo "Run:"
-    echo "export HUGGINGFACE"
-    echo ""
+    echo "Add it to .env file:"
+    echo "HUGGINGFACE_HUB_TOKEN=hf_xxxxx"
     exit 1
 fi
 
 #######################################
-# 1️⃣ Create HF venv (if missing)
+# 1️⃣ Create HF venv
 #######################################
 if [ ! -d "$HF_VENV" ]; then
     echo "Creating HF virtual environment..."
@@ -40,18 +49,21 @@ if [ ! -d "$HF_VENV" ]; then
     source "$HF_VENV/bin/activate"
     pip install --upgrade pip
 
-    pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+    pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
+        --index-url https://download.pytorch.org/whl/cu121
+
     pip install transformers==4.43.3
     pip install huggingface_hub==0.23.4
     pip install protobuf
 
+    pip check
     deactivate
 else
     echo "HF venv already exists."
 fi
 
 #######################################
-# 2️⃣ Create vLLM venv (if missing)
+# 2️⃣ Create vLLM venv
 #######################################
 if [ ! -d "$VLLM_VENV" ]; then
     echo "Creating vLLM virtual environment..."
@@ -60,17 +72,20 @@ if [ ! -d "$VLLM_VENV" ]; then
     source "$VLLM_VENV/bin/activate"
     pip install --upgrade pip
 
-    pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-    pip install vllm==0.5.5
+    pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
+        --index-url https://download.pytorch.org/whl/cu121
+
+    pip install vllm==0.15.1
     pip install transformers==4.43.3
 
+    pip check
     deactivate
 else
     echo "vLLM venv already exists."
 fi
 
 #######################################
-# 3️⃣ Download model (non-interactive)
+# 3️⃣ Download model
 #######################################
 if [ ! -f "$MODEL_DIR/config.json" ]; then
     echo "Downloading $MODEL_ID ..."
@@ -87,7 +102,7 @@ else
 fi
 
 #######################################
-# 4️⃣ Verify
+# 4️⃣ Verify model
 #######################################
 if [ ! -f "$MODEL_DIR/config.json" ]; then
     echo "❌ ERROR: config.json missing."
@@ -98,37 +113,36 @@ if [ ! -f "$MODEL_DIR/config.json" ]; then
     exit 1
 fi
 
-
 ########################################
-# TensorRT-LLM Bootstrap (LLaMA 3.1 8B)
+# 5️⃣ TensorRT-LLM Bootstrap
 ########################################
-
-HF_MODEL_DIR="$PROJECT/hf_models/llama3_1_8b"
-
-CKPT_DIR="$PROJECT/trt_ckpt/llama3_1_8b_bf16_1gpu"
-ENGINE_DIR="$PROJECT/trt_engine/llama3_1_8b_bf16_b16_s4096"
 
 # Ensure running inside TRT container
-if ! python3 -c "import tensorrt_llm" 2>/dev/null; then
-    echo "ERROR: Must run inside NVIDIA TensorRT-LLM container."
+if ! python3 -c "import tensorrt_llm" &>/dev/null; then
+    echo "❌ ERROR: Must run inside NVIDIA TensorRT-LLM container."
+    echo ""
+    echo "Run with:"
+    echo "docker run --gpus all -it \\"
+    echo "  -v \$PWD:/workspace \\"
+    echo "  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3"
     exit 1
 fi
 
 ########################################
-# Convert (only once)
+# Convert HF → TRT checkpoint (once)
 ########################################
 if [ ! -f "$CKPT_DIR/config.json" ]; then
     echo "Converting HF → TRT checkpoint (bf16)..."
     mkdir -p "$CKPT_DIR"
 
     python3 /app/tensorrt_llm/examples/models/core/llama/convert_checkpoint.py \
-        --model_dir "$HF_MODEL_DIR" \
+        --model_dir "$MODEL_DIR" \
         --output_dir "$CKPT_DIR" \
         --dtype bfloat16
 fi
 
 ########################################
-# Build (only once)
+# Build TRT Engine (once)
 ########################################
 if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
     echo "Building TensorRT engine (bf16)..."
@@ -146,6 +160,6 @@ fi
 
 echo "================================="
 echo "✅ Bootstrap complete"
-echo "Model location:"
-echo "$MODEL_DIR"
+echo "Model location:  $MODEL_DIR"
+echo "Engine location: $ENGINE_DIR"
 echo "================================="
