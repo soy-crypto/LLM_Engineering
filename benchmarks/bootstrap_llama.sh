@@ -40,6 +40,8 @@ if [ ! -d "$VLLM_VENV" ]; then
     pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
         --index-url https://download.pytorch.org/whl/cu121
     pip install vllm==0.15.1 transformers==4.43.3
+    
+    pip install --upgrade transformers
 
     deactivate
 fi
