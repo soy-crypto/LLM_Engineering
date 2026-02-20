@@ -7,7 +7,7 @@ RESULTS_DIR="$PROJECT/results"
 MODEL_PATH="$PROJECT/hf_models/llama3_1_8b"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
-BATCH_SIZES="1,2,4,8"        # safer for 8B
+BATCH_SIZES="1,2,4,8"
 MAX_NEW_TOKENS=512
 DTYPE="bfloat16"
 
@@ -19,6 +19,9 @@ echo "================================="
 
 # Activate HF environment
 source "$PROJECT/.venv_hf/bin/activate"
+
+# Ensure required deps
+pip install -q accelerate
 
 python "$PROJECT/benchmarks/hf/bm_hf.py" \
   --model "$MODEL_PATH" \
