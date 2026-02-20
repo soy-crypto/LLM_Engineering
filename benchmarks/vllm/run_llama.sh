@@ -20,6 +20,9 @@ echo "================================="
 # Activate vLLM environment
 source "$PROJECT/.venv_vllm/bin/activate"
 
+# Ensure required deps (vLLM optional extras)
+pip install -q pyairports
+
 python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
   --model "$MODEL_PATH" \
   --prompts "$PROMPTS" \
