@@ -45,7 +45,7 @@ if [ ! -d "$VLLM_VENV" ]; then
     echo "Creating vLLM virtual environment (Python 3.10)..."
 
     # Force Python 3.10 (required for vLLM stability)
-    python3.10 -m venv "$VLLM_VENV"
+    python3 -m venv "$VLLM_VENV"
 
     source "$VLLM_VENV/bin/activate"
     pip install --upgrade pip
