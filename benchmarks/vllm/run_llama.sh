@@ -2,6 +2,7 @@
 set -e
 
 PROJECT="/workspace/LLM_Engineering"
+VLLM_VENV="$PROJECT/.venv_vllm"
 RESULTS_DIR="$PROJECT/results"
 
 MODEL_PATH="$PROJECT/hf_models/llama3_1_8b"
@@ -17,11 +18,28 @@ echo "================================="
 echo "Running vLLM benchmark (Llama-3.1-8B)"
 echo "================================="
 
-# Activate vLLM environment
-source "$PROJECT/.venv_vllm/bin/activate"
+#######################################
+# Create vLLM venv (Python 3.10)
+#######################################
+if [ ! -d "$VLLM_VENV" ]; then
+    echo "Creating vLLM virtual environment (Python 3.10)..."
 
-# Ensure required deps (vLLM optional extras)
-pip install -q pyairports
+    python3 -m venv "$VLLM_VENV"
+
+    source "$VLLM_VENV/bin/activate"
+    pip install --upgrade pip
+
+    pip install torch==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+    pip install vllm[all]==0.5.5
+    pip install transformers==4.43.3
+
+    deactivate
+else
+    echo "vLLM venv already exists."
+fi
+
+# Activate vLLM environment
+source "$VLLM_VENV/bin/activate"
 
 python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
   --model "$MODEL_PATH" \
