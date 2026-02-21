@@ -1,20 +1,3 @@
-Excellent.
-You’re now on a **48GB GPU**, so this README should feel like:
-
-* Systems-level
-* Confident
-* Architecture-aware
-* Backend-aware
-* GPU-regime-aware
-* No student-project tone
-* No fluff
-
-Below is a **clean, senior-level, research-grade README** tailored to your setup.
-
-You can paste this directly into `README.md`.
-
----
-
 # 🚀 LLM Inference Systems Study
 
 **KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering**
