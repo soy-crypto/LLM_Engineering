@@ -284,13 +284,3 @@ This is inference systems engineering — not model fine-tuning.
 * INT8 / FP8 quantization comparison
 * Prefill vs decode phase separation
 * Triton serving integration
-
----
-
-If you'd like, I can now:
-
-* Write a shorter recruiter-facing version (1-page sharp version)
-* Or rewrite this as a blog-style deep dive
-* Or tune it specifically for Meta / NVIDIA / Google infra interviews
-
-This version already positions you as a systems-level inference engineer.
