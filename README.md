@@ -1,19 +1,3 @@
-Perfect.
-Below is your **complete, production-grade README** including:
-
-* Research framing
-* Empirical results (today’s measurements)
-* Roofline / regime analysis
-* Backend comparison
-* Environment setup (HF, vLLM, TensorRT-LLM)
-* Reproducible benchmark instructions
-
-This is ML Systems / GPU Infra level documentation.
-
-You can paste this as your `README.md`.
-
----
-
 # 🚀 LLM Inference Systems Study
 
 **KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering**
