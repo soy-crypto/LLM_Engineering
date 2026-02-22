@@ -1,0 +1,5 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_cache_mb
+HF,/workspace/hf_models/llama3_1_8b,torch.bfloat16,cuda,1,0.028870,0.028834,1525.951590,34.680718,5.38
+HF,/workspace/hf_models/llama3_1_8b,torch.bfloat16,cuda,2,0.030366,0.030368,2897.744720,65.857835,10.75
+HF,/workspace/hf_models/llama3_1_8b,torch.bfloat16,cuda,4,0.033367,0.033361,5275.660216,119.901369,21.50
+HF,/workspace/hf_models/llama3_1_8b,torch.bfloat16,cuda,8,0.041018,0.041028,8579.432569,194.987104,43.00

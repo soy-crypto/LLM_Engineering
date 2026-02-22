@@ -1,0 +1,5 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_new
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,1,0.043648,0.023983,41.697201
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,2,0.045366,0.046091,43.392747
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,4,0.047044,0.048286,82.839707
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,8,0.048003,0.050256,159.194069
