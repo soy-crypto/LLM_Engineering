@@ -18,12 +18,14 @@ echo "Setting up benchmark environments"
 echo "================================="
 
 #######################################
-# HF venv
+# HF venv (FIXED LOCATION)
 #######################################
-if [ ! -d "$PROJECT/.venv_hf" ]; then
+HF_VENV="$WORKSPACE/.venv_hf"
+
+if [ ! -d "$HF_VENV" ]; then
     echo "Creating HF venv..."
-    $PYTHON_BIN -m venv "$PROJECT/.venv_hf"
-    source "$PROJECT/.venv_hf/bin/activate"
+    $PYTHON_BIN -m venv "$HF_VENV"
+    source "$HF_VENV/bin/activate"
 
     pip install --upgrade pip
 
@@ -41,12 +43,14 @@ if [ ! -d "$PROJECT/.venv_hf" ]; then
 fi
 
 #######################################
-# vLLM venv
+# vLLM venv (FIXED LOCATION)
 #######################################
-if [ ! -d "$PROJECT/.venv_vllm" ]; then
+VLLM_VENV="$WORKSPACE/.venv_vllm"
+
+if [ ! -d "$VLLM_VENV" ]; then
     echo "Creating vLLM venv..."
-    $PYTHON_BIN -m venv "$PROJECT/.venv_vllm"
-    source "$PROJECT/.venv_vllm/bin/activate"
+    $PYTHON_BIN -m venv "$VLLM_VENV"
+    source "$VLLM_VENV/bin/activate"
 
     pip install --upgrade pip
 
@@ -71,7 +75,7 @@ if [ ! -f "$HF_MODEL_DIR/config.json" ]; then
     echo "Downloading model: $MODEL_ID"
     mkdir -p "$WORKSPACE/hf_models"
 
-    source "$PROJECT/.venv_hf/bin/activate"
+    source "$HF_VENV/bin/activate"
 
     python - <<EOF
 from huggingface_hub import snapshot_download
