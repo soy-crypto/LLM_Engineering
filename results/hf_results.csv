@@ -1,0 +1,11 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_total,tokps_new,avg_kv_cache_mb
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,1,0.027629,11.643114,47.581774,43.974491,30.24
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,2,0.031650,12.564393,88.185713,81.500154,60.48
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,4,0.051021,18.694899,118.535009,109.548600,120.97
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,8,0.087491,28.963850,153.018333,141.417665,241.94
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,16,0.140219,31.731308,279.345558,258.167736,483.88
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,1,0.066093,25.138035,22.038318,20.367543,30.24
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,2,0.077190,26.931191,41.141886,38.022826,60.48
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,4,0.072860,22.351810,99.141859,91.625689,120.97
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,8,0.036533,13.685058,323.856864,299.304538,241.94
+HF,/workspace/hf_models/qwen2p5_7b,torch.bfloat16,cuda,16,0.064684,15.030009,589.753466,545.042914,483.88

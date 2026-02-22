@@ -1,0 +1,6 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokps_new
+vLLM,/workspace/hf_models/qwen2p5_7b,bfloat16,cuda,1,0.023096,10.308693,49.666820
+vLLM,/workspace/hf_models/qwen2p5_7b,bfloat16,cuda,2,0.044022,10.638975,96.249876
+vLLM,/workspace/hf_models/qwen2p5_7b,bfloat16,cuda,4,0.048230,10.662309,192.078465
+vLLM,/workspace/hf_models/qwen2p5_7b,bfloat16,cuda,8,0.049016,10.566955,387.623479
+vLLM,/workspace/hf_models/qwen2p5_7b,bfloat16,cuda,16,0.051863,10.752905,761.840608
