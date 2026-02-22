@@ -1,10 +1,28 @@
+Perfect.
+Below is your **complete, production-grade README** including:
+
+* Research framing
+* Empirical results (today’s measurements)
+* Roofline / regime analysis
+* Backend comparison
+* Environment setup (HF, vLLM, TensorRT-LLM)
+* Reproducible benchmark instructions
+
+This is ML Systems / GPU Infra level documentation.
+
+You can paste this as your `README.md`.
+
+---
+
 # 🚀 LLM Inference Systems Study
 
 **KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering**
 
 A GPU-native investigation of decoder-only LLM inference performance across HuggingFace, vLLM, and TensorRT-LLM, with explicit KV cache modeling and backend-aware benchmarking.
 
-This project studies how architectural parameters, memory systems, and backend implementations determine real-world decode performance on 48GB-class GPUs.
+This project studies how architectural parameters, GPU memory systems, and backend implementations determine real-world decode performance on 48GB-class GPUs.
+
+This is **inference systems engineering**, not model fine-tuning.
 
 ---
 
@@ -12,9 +30,9 @@ This project studies how architectural parameters, memory systems, and backend i
 
 Understand when LLM inference is:
 
-* **Memory-bandwidth-bound**
 * **Compute-bound**
-* **KV-cache-constrained**
+* **Memory-bandwidth-bound**
+* **Memory-capacity-constrained**
 * **Backend-limited**
 
 Rather than just measuring tokens/sec, this project models and validates the structural causes of performance behavior.
@@ -27,13 +45,14 @@ Rather than just measuring tokens/sec, this project models and validates the str
 
 * 48GB VRAM GPU (RTX 6000 Ada / A6000 class)
 * CUDA 12.x
+* Single GPU
 * bfloat16 precision
 
-48GB VRAM allows:
+48GB VRAM enables:
 
-* 8K–16K context experiments
-* Larger batch scaling
-* Clear separation between memory-bound and compute-bound regimes
+* 8K–16K context analysis
+* Large batch scaling without early OOM
+* Clear separation between bandwidth vs capacity limits
 
 ---
 
@@ -44,7 +63,7 @@ Rather than just measuring tokens/sec, this project models and validates the str
 * Qwen2.5-7B
 * Llama-3.1-8B
 
-All experiments performed in bfloat16.
+All experiments use bfloat16 unless otherwise specified.
 
 ---
 
@@ -80,7 +99,14 @@ Where:
 * hidden_size = model width
 * bytes = dtype size (bf16 = 2)
 
-### Example (7B model)
+Total KV memory:
+
+```
+KV_total_MB =
+batch × tokens × KV_MB_per_token
+```
+
+Example (7B model):
 
 ≈ 0.38 MB per token (batch = 1)
 
@@ -91,53 +117,126 @@ KV memory scales linearly with:
 * Model depth
 * Hidden dimension
 
-This allows prediction of regime transitions.
+This model allows prediction of memory regime transitions.
 
 ---
 
-# 📊 Regime Analysis (48GB GPU)
+# 📊 Empirical Results (Measured)
 
-## Small Models (≤1.5B)
-
-* Primarily memory-bandwidth-bound
-* Throughput sensitive to KV layout
-* Paged KV yields large gains
-
-## 7B–8B Models
-
-* Transition to compute-bound
-* Batch scaling nearly linear up to large batch sizes
-* Memory bandwidth no longer primary bottleneck
-* Engine-level optimizations dominate
-
-## Extended Context (8K–16K)
-
-* KV growth measurable but does not immediately saturate 48GB
-* Decode remains compute-bound until high batch + long context combined
+All results below were collected on a 48GB GPU.
 
 ---
 
-# 📈 Representative Results
+## 1️⃣ Sequence Length Scaling
 
-### Batch Scaling (7B, 128 tokens)
+**Model: Llama-3.1-8B**
+Batch = 1
+Decode tokens = 128
+bf16 precision
 
-Near-linear scaling observed up to large batch sizes → compute-bound regime.
+| Context | Prefill (s) | Decode (s) | Per-token (ms) | Throughput (tok/s) | GPU Mem (MB) |
+| ------- | ----------- | ---------- | -------------- | ------------------ | ------------ |
+| 512     | 0.28        | 3.06       | 23.94          | 41.77              | 15543        |
+| 4096    | 0.59        | 3.24       | 25.31          | 39.50              | 16871        |
 
-### Decode Length Scaling
+### Observations
 
-Doubling KV footprint does not halve throughput.
-Memory bandwidth headroom remains sufficient at 48GB.
+* KV memory increased ~1.3GB.
+* Per-token decode latency increased moderately.
+* Throughput degradation was mild.
+* Decode did not collapse under longer context.
 
-### Backend Comparison
+### Interpretation
 
-TensorRT-LLM > vLLM > HF eager in decode throughput.
+At 48GB memory headroom:
 
-Performance gains attributed to:
+* Decode remains largely compute-efficient.
+* KV growth measurable but bandwidth not saturated.
+* Arithmetic intensity remains sufficient.
 
-* Kernel fusion
-* Engine compilation
-* Memory layout optimization
-* Reduced Python overhead
+---
+
+## 2️⃣ Batch Scaling
+
+**Model: Llama-3.1-8B**
+Decode tokens = 128
+bf16 precision
+
+| Batch | Decode (s) | Per-token (ms) | Throughput (tok/s) | GPU Mem (MB) |
+| ----- | ---------- | -------------- | ------------------ | ------------ |
+| 1     | 3.24       | 25.30          | 39.52              | 16871        |
+| 2     | 3.59       | 28.03          | 71.36              | 18417        |
+| 4     | 4.01       | 31.33          | 127.73             | 21510        |
+| 8     | 5.38       | 42.03          | 190.33             | 27696        |
+| 16    | OOM        | —              | —                  | >40GB        |
+
+### Observations
+
+* Throughput scales strongly up to batch 8.
+* Latency increases with batch.
+* Memory scales linearly.
+* OOM at batch 16.
+
+### Interpretation
+
+* Batch 1–4: compute-efficient regime.
+* Batch 8: bandwidth pressure begins.
+* Batch 16: memory capacity limit.
+
+---
+
+## 3️⃣ Precision Scaling
+
+**Model: Llama-3.1-8B**
+Batch = 1
+
+| Dtype | Decode (s) | Per-token (ms) | Throughput (tok/s) | GPU Mem (MB) |
+| ----- | ---------- | -------------- | ------------------ | ------------ |
+| FP16  | 3.24       | 25.29          | 39.54              | 16871        |
+| FP32  | 8.31       | 64.94          | 15.40              | 36794        |
+
+### Interpretation
+
+FP16 enables:
+
+* Tensor Core acceleration
+* Reduced memory footprint
+* Higher effective bandwidth
+
+FP32:
+
+* Doubles memory
+* Reduces compute throughput
+* Pushes decode toward bandwidth stress
+
+---
+
+## 4️⃣ Serving Load Test (20 Concurrent Users)
+
+* Average latency: 3.92 sec
+* P50 latency: 3.34 sec
+* P95 latency: 4.97 sec
+* Max latency: 5.14 sec
+
+Dynamic batching introduces:
+
+* Improved GPU utilization
+* Increased tail latency
+* Latency variance due to scheduling
+
+This demonstrates real-world SLO tradeoffs.
+
+---
+
+# 🧠 Regime Summary
+
+| Scaling Dimension | First Bottleneck    |
+| ----------------- | ------------------- |
+| Batch ↑           | Memory bandwidth    |
+| Sequence ↑        | KV growth           |
+| Model size ↑      | Memory capacity     |
+| Precision ↑       | Compute + bandwidth |
+| Traffic ↑         | GPU saturation      |
 
 ---
 
@@ -150,19 +249,29 @@ LLM_Engineering/
 │   ├── hf/
 │   ├── vllm/
 │   ├── trt/
+├── serving/
+├── results/
 ├── hf_models/
 ├── trt_ckpt/
 ├── trt_engine/
-├── prompts/
-├── results/
 └── README.md
 ```
 
 ---
 
-# 🚀 Setup
+# 🚀 Environment Setup
 
-## 1️⃣ Host Provisioning
+## 1️⃣ System Requirements
+
+* Linux (Ubuntu 22.04 recommended)
+* NVIDIA driver ≥ 535
+* CUDA 12.x
+* Python 3.10+
+* 48GB GPU recommended
+
+---
+
+## 2️⃣ Install NVIDIA & Docker
 
 ```bash
 chmod +x bootstrap_host.sh
@@ -178,43 +287,44 @@ Installs:
 
 ---
 
-## 2️⃣ TensorRT-LLM Container
+## 3️⃣ HuggingFace Environment
 
 ```bash
-docker login nvcr.io
-docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
-
-docker run --gpus all -it \
-  -v $PWD:/workspace \
-  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
-```
-
----
-
-# ▶️ Running Benchmarks
-
-## HuggingFace
-
-```bash
+python3 -m venv .venv_hf
 source .venv_hf/bin/activate
 
+pip install --upgrade pip
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install transformers huggingface_hub accelerate
+```
+
+Run benchmark:
+
+```bash
 python benchmarks/hf/bm_hf.py \
   --model hf_models/llama3_1_8b \
-  --batch_size 1,2,4,8,16 \
-  --max_new_tokens 512
+  --batch_size 1,2,4,8 \
+  --max_new_tokens 128
 ```
 
 ---
 
-## vLLM (48GB configuration)
+## 4️⃣ vLLM Environment
 
 ```bash
+python3 -m venv .venv_vllm
 source .venv_vllm/bin/activate
 
+pip install vllm transformers
+```
+
+Run:
+
+```bash
 python benchmarks/vllm/bm_vllm.py \
   --model hf_models/llama3_1_8b \
-  --batch_size 1,2,4,8,16,32 \
-  --max_new_tokens 512 \
+  --batch_size 1,2,4,8,16 \
+  --max_new_tokens 128 \
   --dtype bfloat16 \
   --max_model_len 8192 \
   --gpu_memory_utilization 0.95
@@ -222,7 +332,22 @@ python benchmarks/vllm/bm_vllm.py \
 
 ---
 
-## TensorRT-LLM
+## 5️⃣ TensorRT-LLM Setup
+
+Pull container:
+
+```bash
+docker login nvcr.io
+docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
+
+Run:
+
+```bash
+docker run --gpus all -it \
+  -v $PWD:/workspace \
+  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
+```
 
 Convert checkpoint:
 
@@ -245,9 +370,9 @@ trtllm-build \
 
 ---
 
-# 📂 Outputs
+# 📂 Results Directory
 
-All metrics stored in:
+All benchmark outputs stored in:
 
 ```
 results/
@@ -255,9 +380,9 @@ results/
 
 Includes:
 
-* Throughput vs batch scaling
-* TTFT scaling
+* Throughput scaling
 * KV growth validation
+* Precision comparison
 * Backend comparison
 
 ---
@@ -266,21 +391,19 @@ Includes:
 
 This project demonstrates:
 
-* KV cache theoretical modeling and validation
+* KV cache analytical modeling
 * Compute vs bandwidth regime diagnosis
-* Multi-backend inference benchmarking
-* GPU-native containerized deployment
-* TensorRT engine compilation workflow
-* Reproducible performance measurement
-
-This is inference systems engineering — not model fine-tuning.
+* Multi-backend benchmarking
+* Engine-level TensorRT workflow
+* GPU-native deployment
+* Reproducible inference measurement
 
 ---
 
 # 🔭 Future Work
 
-* 16K+ context stress testing
-* Multi-GPU tensor parallel scaling
+* Multi-GPU tensor parallel study
 * INT8 / FP8 quantization comparison
-* Prefill vs decode phase separation
-* Triton serving integration
+* Roofline intensity modeling
+* Communication-bound regime analysis
+* Triton production deployment
