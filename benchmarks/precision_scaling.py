@@ -6,11 +6,11 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 MODEL_ID = "meta-llama/Llama-3.1-8B"
 DEVICE = "cuda"
-DTYPE = torch.float16
 MAX_NEW_TOKENS = 128
-SEQUENCE_LENGTH = 4096  # keep fixed for this experiment
+SEQUENCE_LENGTH = 4096
+BATCH_SIZE = 1
 
-RESULTS_PATH = "../results/raw_data/batch_scaling_prefill_decode.csv"
+RESULTS_PATH = "../results/raw_data/precision_scaling.csv"
 
 
 def generate_prompt(target_length, tokenizer):
@@ -20,30 +20,29 @@ def generate_prompt(target_length, tokenizer):
     return tokenizer.decode(repeated[:target_length])
 
 
-def run_experiment(batch_size):
-    print(f"\nRunning batch size = {batch_size}")
+def run_experiment(dtype):
+    print(f"\nRunning dtype = {dtype}")
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     tokenizer.pad_token = tokenizer.eos_token
+
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
-        torch_dtype=DTYPE,
+        torch_dtype=dtype,
         device_map="auto"
     )
 
     model.eval()
 
     prompt = generate_prompt(SEQUENCE_LENGTH, tokenizer)
-    inputs = tokenizer([prompt] * batch_size, return_tensors="pt", padding=True).to(DEVICE)
+    inputs = tokenizer([prompt] * BATCH_SIZE, return_tensors="pt", padding=True).to(DEVICE)
 
     torch.cuda.reset_peak_memory_stats()
     torch.cuda.synchronize()
 
     with torch.no_grad():
 
-        # -----------------
         # Prefill
-        # -----------------
         torch.cuda.synchronize()
         start_prefill = time.time()
 
@@ -57,9 +56,7 @@ def run_experiment(batch_size):
         past_key_values = outputs.past_key_values
         next_token = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
 
-        # -----------------
         # Decode
-        # -----------------
         torch.cuda.synchronize()
         decode_start = time.time()
 
@@ -69,7 +66,6 @@ def run_experiment(batch_size):
                 past_key_values=past_key_values,
                 use_cache=True
             )
-
             past_key_values = outputs.past_key_values
             next_token = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
 
@@ -79,12 +75,11 @@ def run_experiment(batch_size):
         decode_time = decode_end - decode_start
 
     per_token_decode_latency_ms = (decode_time / MAX_NEW_TOKENS) * 1000
-    throughput_tokens_per_sec = (batch_size * MAX_NEW_TOKENS) / decode_time
-
+    throughput_tokens_per_sec = (BATCH_SIZE * MAX_NEW_TOKENS) / decode_time
     peak_memory_MB = torch.cuda.max_memory_allocated() / (1024 ** 2)
 
     result = {
-        "batch_size": batch_size,
+        "dtype": str(dtype),
         "prefill_time_sec": prefill_time,
         "decode_time_sec": decode_time,
         "per_token_decode_latency_ms": per_token_decode_latency_ms,
@@ -107,8 +102,8 @@ def save_result(result):
 
 
 def main():
-    for batch_size in [1, 2, 4, 8, 16]:
-        result = run_experiment(batch_size)
+    for dtype in [torch.float16, torch.float32]:
+        result = run_experiment(dtype)
         save_result(result)
 
 

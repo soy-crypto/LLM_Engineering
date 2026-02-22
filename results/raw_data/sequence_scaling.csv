@@ -1,0 +1,2 @@
+sequence_length,total_time_sec,generated_tokens,per_token_latency_ms,throughput_tokens_per_sec,gpu_memory_MB
+512,5.947132587432861,128,46.46197333931923,21.52297735390703,15451.82763671875
