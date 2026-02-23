@@ -407,79 +407,48 @@ docker run -it \
 ```
 
 
-#############################How to use the repo###################################
-## Step 1 — Bootstrap host folders
+#############################---Workflow---###################################
+Here is the **complete, clean workflow including analysis**, using your current repo structure and the new unified `run_analysis.py`.
 
-Run once after creating container or new machine:
+---
+
+# Phase 0 — One-time setup (per machine)
 
 ```bash
 ./scripts/bootstrap_host.sh
 ```
 
-Creates:
-
-```text
-/workspace/hf_models
-/workspace/trt_ckpt
-/workspace/trt_engine
-/workspace/.venv_hf
-/workspace/.venv_vllm
-/workspace/.venv_serving
-```
+Creates base folders and virtual environments.
 
 ---
 
-# Step 2 — Download all models
-
-Run once per model set:
+# Phase 1 — Download models (once per model set)
 
 ```bash
 ./scripts/download_models.sh
 ```
 
-Reads:
-
-```text
-scripts/config/models.conf
-```
-
-Downloads into:
+Downloads models into:
 
 ```text
 /workspace/hf_models/
 ```
 
-Required before any backend runs.
-
 ---
 
-# Step 3 — Create backend environments
-
-Run once:
+# Phase 2 — Setup backend environments (once)
 
 ```bash
 ./scripts/bootstrap/bootstrap_hf.sh
-
 ./scripts/bootstrap/bootstrap_vllm.sh
-
 ./scripts/bootstrap/bootstrap_serving.sh
 ```
 
-Creates:
-
-```text
-/workspace/.venv_hf
-/workspace/.venv_vllm
-/workspace/.venv_serving
-```
+TensorRT is handled separately inside container.
 
 ---
 
-# Step 4 — Build TensorRT engines (inside TRT container)
-
-Start TRT container first.
-
-Then run:
+# Phase 3 — Build TensorRT engines (inside TRT container, once per model)
 
 ```bash
 ./scripts/bootstrap/bootstrap_trtllm.sh
@@ -488,31 +457,24 @@ Then run:
 Creates:
 
 ```text
-/workspace/trt_ckpt/
 /workspace/trt_engine/
 ```
 
-Required before TRT benchmarking or serving.
-
 ---
 
-# Run benchmarking pipeline (repeat for experiments)
-
-## Step 5 — Run offline benchmarks
+# Phase 4 — Run benchmarks (core experiment step)
 
 ```bash
 ./scripts/run/run_all_backends.sh
 ```
 
-Runs:
+This runs:
 
-```text
-HF benchmark
-vLLM benchmark
-TensorRT benchmark
-```
+* HF benchmarks
+* vLLM benchmarks
+* TensorRT benchmarks
 
-Outputs:
+Outputs raw results:
 
 ```text
 results/hf/
@@ -522,101 +484,97 @@ results/trt/
 
 ---
 
-## Step 6 — Aggregate results
+# Phase 5 — Run combined analysis (aggregate + plots + summary)
 
 ```bash
-python benchmarks/aggregate.py
+python benchmarks/run_analysis.py
 ```
 
-Creates:
+This does ALL of the following automatically:
 
-```text
-results/aggregate/aggregate_results.csv
-```
+* combines all CSVs
+* generates plots
+* prints performance summary
 
----
-
-## Step 7 — Plot performance
-
-```bash
-python benchmarks/plot_results.py
-```
-
-Creates:
+Outputs:
 
 ```text
 results/aggregate/
-  throughput_vs_batch.png
-  latency_vs_batch.png
+
+aggregate_results.csv
+throughput_vs_batch.png
+latency_vs_batch.png
+```
+
+Terminal example:
+
+```text
+Summary tokens/sec:
+
+HF               95
+vLLM            310
+TensorRT-LLM    480
 ```
 
 ---
 
-# Optional: Serving benchmark pipeline
+# Phase 6 — Optional: Serving benchmark (real inference test)
 
-## Step 8 — Start inference servers
+Start servers:
 
 ```bash
 ./scripts/serving/run_servers.sh
 ```
 
-Starts:
-
-```text
-HF server      localhost:8000
-vLLM server    localhost:8001
-TRT server     localhost:8002
-```
-
----
-
-## Step 9 — Run load test
+Run load test:
 
 ```bash
 ./scripts/serving/run_load_test.sh
 ```
 
-Creates:
+Outputs:
 
 ```text
 results/serving/
 ```
 
-Shows:
+---
 
-```text
-requests/sec
-p50 latency
-p95 latency
-p99 latency
+# Daily workflow (most common)
+
+After initial setup, only run:
+
+```bash
+./scripts/run/run_all_backends.sh
+python benchmarks/run_analysis.py
 ```
 
 ---
 
-# Full automatic pipeline (recommended)
+# Fully automated workflow (recommended)
 
-Instead of running everything manually, use:
+Use:
 
 ```bash
 ./scripts/run/run_full_experiment.sh
 ```
 
-This should internally execute:
+This should internally run:
 
 ```bash
-bootstrap_host.sh
-download_models.sh
-bootstrap_hf.sh
-bootstrap_vllm.sh
-bootstrap_trtllm.sh
+bootstrap_host.sh        (first time only)
+download_models.sh       (first time only)
+bootstrap_hf.sh         (first time only)
+bootstrap_vllm.sh       (first time only)
+bootstrap_trtllm.sh     (first time only)
+
 run_all_backends.sh
-aggregate.py
-plot_results.py
+python benchmarks/run_analysis.py
 ```
 
 ---
 
-# Summary: exact order
+# Complete pipeline summary (correct order)
 
 ```bash
 # One-time setup
@@ -631,8 +589,9 @@ plot_results.py
 
 # Run experiments
 ./scripts/run/run_all_backends.sh
-python benchmarks/aggregate.py
-python benchmarks/plot_results.py
+
+# Run analysis
+python benchmarks/run_analysis.py
 
 # Optional serving tests
 ./scripts/serving/run_servers.sh
@@ -641,10 +600,20 @@ python benchmarks/plot_results.py
 
 ---
 
-# Daily workflow (most common for you)
+# Final outputs you will have
 
-After initial setup, just run:
+```text
+results/
 
-```bash
-./scripts/run/run_full_experiment.sh
+  hf/
+  vllm/
+  trt/
+
+  aggregate/
+    aggregate_results.csv
+    throughput_vs_batch.png
+    latency_vs_batch.png
+
+  serving/
+    load_test results
 ```
