@@ -1,0 +1,10 @@
+{
+  "gpu": "NVIDIA L40S",
+  "cuda": "12.4",
+  "driver": "550.xx",
+  "backend_versions": {
+    "vllm": "0.5.4",
+    "tensorrt_llm": "0.10.0",
+    "transformers": "4.43.3"
+  }
+}
