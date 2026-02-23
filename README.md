@@ -333,7 +333,7 @@ docker run --gpus all -it \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
-```bash --- allocate a contanier of big size
+```allocate a contanier of big size
 docker run -it \
   --gpus all \
   --shm-size=32g \
@@ -344,6 +344,7 @@ docker run -it \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3 \
   bash
 ```
+
 
 Convert checkpoint:
 
