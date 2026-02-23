@@ -1,51 +1,86 @@
 #!/bin/bash
+set -euo pipefail
 
-set -e
+WORKSPACE="/workspace"
+MODELS_DIR="$WORKSPACE/hf_models"
+CONFIG_FILE="$WORKSPACE/LLM_Engineering/scripts/config/models.conf"
 
-# Change this if needed
-BASE_DIR=/workspace/hf_models
+HF_VENV="$WORKSPACE/.venv_hf"
 
-echo "==================================="
-echo "Creating model directory..."
-echo "==================================="
+echo "================================="
+echo "Downloading models from config"
+echo "================================="
 
-mkdir -p $BASE_DIR
-cd $BASE_DIR
+mkdir -p "$MODELS_DIR"
 
-# Check huggingface-cli
-if ! command -v huggingface-cli &> /dev/null
-then
-    echo "Installing huggingface_hub..."
-    pip install -U huggingface_hub
+########################################
+# Ensure HF venv exists
+########################################
+
+if [ ! -d "$HF_VENV" ]; then
+
+    python3 -m venv "$HF_VENV"
+
+    source "$HF_VENV/bin/activate"
+
+    pip install --upgrade pip
+    pip install huggingface_hub
+
+    deactivate
 fi
 
-# Function to download safely
-download_model () {
-    MODEL_NAME=$1
-    LOCAL_DIR=$2
+########################################
+# Activate venv
+########################################
 
-    if [ -d "$LOCAL_DIR" ]; then
-        echo "Skipping $MODEL_NAME (already exists)"
+source "$HF_VENV/bin/activate"
+
+########################################
+# Check login
+########################################
+
+if ! huggingface-cli whoami &>/dev/null; then
+
+    echo ""
+    echo "ERROR: HuggingFace login required."
+    echo "Run: huggingface-cli login"
+    echo ""
+
+    exit 1
+fi
+
+########################################
+# Download models
+########################################
+
+while IFS="|" read -r NAME MODEL_ID
+do
+
+    MODEL_DIR="$MODELS_DIR/$NAME"
+
+    if [ -f "$MODEL_DIR/config.json" ]; then
+
+        echo "Skipping $NAME (already exists)"
+
     else
-        echo "Downloading $MODEL_NAME..."
-        huggingface-cli download $MODEL_NAME \
-            --local-dir $LOCAL_DIR \
+
+        echo ""
+        echo "Downloading $NAME"
+        echo "Model ID: $MODEL_ID"
+
+        mkdir -p "$MODEL_DIR"
+
+        huggingface-cli download "$MODEL_ID" \
+            --local-dir "$MODEL_DIR" \
             --local-dir-use-symlinks False
+
+        echo "Done: $NAME"
     fi
-}
 
-echo "==================================="
-echo "Starting downloads..."
-echo "==================================="
+done < "$CONFIG_FILE"
 
-download_model meta-llama/Llama-3.1-8B-Instruct Llama-3.1-8B-Instruct
-download_model Qwen/Qwen2.5-7B-Instruct Qwen2.5-7B-Instruct
-download_model nvidia/Nemotron-3-8B-Instruct Nemotron-3-8B-Instruct
-download_model mistralai/Mistral-7B-Instruct-v0.3 Mistral-7B-Instruct
-download_model mistralai/Mixtral-8x7B-Instruct-v0.1 Mixtral-8x7B
-download_model microsoft/phi-3-mini-4k-instruct Phi-3-mini
-download_model google/gemma-7b-it Gemma-7B
+deactivate
 
-echo "==================================="
-echo "All models ready in $BASE_DIR"
-echo "==================================="
+echo ""
+echo "All models ready in:"
+echo "$MODELS_DIR"
