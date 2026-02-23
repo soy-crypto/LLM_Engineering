@@ -407,36 +407,72 @@ docker run -it \
 ```
 
 
-#############################---Workflow---###################################
-Here is the **complete, clean workflow including analysis**, using your current repo structure and the new unified `run_analysis.py`.
+Here is your workflow formatted cleanly as a **README.md section** you can paste directly into your repo.
 
 ---
 
-# Phase 0 — One-time setup (per machine)
+````markdown
+# Inference Benchmarking Workflow
+
+This document describes the complete end-to-end workflow for running inference benchmarks and analysis using HuggingFace, vLLM, and TensorRT-LLM backends.
+
+---
+
+# Overview
+
+The pipeline includes:
+
+- Model download
+- Backend environment setup
+- TensorRT engine build
+- Offline benchmarking
+- Combined analysis (aggregation + plots)
+- Optional serving load tests
+
+---
+
+# Phase 0 — One-time Setup (per machine)
+
+Initialize workspace folders and base environments:
 
 ```bash
 ./scripts/bootstrap_host.sh
-```
+````
 
-Creates base folders and virtual environments.
+Creates:
+
+```
+/workspace/hf_models/
+/workspace/trt_ckpt/
+/workspace/trt_engine/
+/workspace/.venv_hf/
+/workspace/.venv_vllm/
+/workspace/.venv_serving/
+```
 
 ---
 
-# Phase 1 — Download models (once per model set)
+# Phase 1 — Download Models (once per model set)
+
+Download all models listed in `scripts/config/models.conf`:
 
 ```bash
 ./scripts/download_models.sh
 ```
 
-Downloads models into:
+Models will be stored in:
 
-```text
+```
 /workspace/hf_models/
 ```
 
+These models are shared by all backends.
+
 ---
 
-# Phase 2 — Setup backend environments (once)
+# Phase 2 — Setup Backend Environments (once)
+
+Create isolated environments for each backend:
 
 ```bash
 ./scripts/bootstrap/bootstrap_hf.sh
@@ -444,39 +480,45 @@ Downloads models into:
 ./scripts/bootstrap/bootstrap_serving.sh
 ```
 
-TensorRT is handled separately inside container.
+TensorRT-LLM environment is handled separately inside the container.
 
 ---
 
-# Phase 3 — Build TensorRT engines (inside TRT container, once per model)
+# Phase 3 — Build TensorRT Engines (inside TensorRT container)
+
+Run inside TensorRT-LLM container:
 
 ```bash
 ./scripts/bootstrap/bootstrap_trtllm.sh
 ```
 
-Creates:
+Creates optimized engines in:
 
-```text
+```
 /workspace/trt_engine/
 ```
 
+Required for TensorRT benchmarking and serving.
+
 ---
 
-# Phase 4 — Run benchmarks (core experiment step)
+# Phase 4 — Run Benchmarks
+
+Execute benchmarking across all backends:
 
 ```bash
 ./scripts/run/run_all_backends.sh
 ```
 
-This runs:
+Runs:
 
-* HF benchmarks
-* vLLM benchmarks
-* TensorRT benchmarks
+* HuggingFace backend
+* vLLM backend
+* TensorRT-LLM backend
 
 Outputs raw results:
 
-```text
+```
 results/hf/
 results/vllm/
 results/trt/
@@ -484,21 +526,17 @@ results/trt/
 
 ---
 
-# Phase 5 — Run combined analysis (aggregate + plots + summary)
+# Phase 5 — Run Combined Analysis
+
+Aggregate results, generate plots, and print summary:
 
 ```bash
 python benchmarks/run_analysis.py
 ```
 
-This does ALL of the following automatically:
-
-* combines all CSVs
-* generates plots
-* prints performance summary
-
 Outputs:
 
-```text
+```
 results/aggregate/
 
 aggregate_results.csv
@@ -506,9 +544,9 @@ throughput_vs_batch.png
 latency_vs_batch.png
 ```
 
-Terminal example:
+Example terminal summary:
 
-```text
+```
 Summary tokens/sec:
 
 HF               95
@@ -518,9 +556,9 @@ TensorRT-LLM    480
 
 ---
 
-# Phase 6 — Optional: Serving benchmark (real inference test)
+# Phase 6 — Optional Serving Benchmark
 
-Start servers:
+Start inference servers:
 
 ```bash
 ./scripts/serving/run_servers.sh
@@ -534,15 +572,17 @@ Run load test:
 
 Outputs:
 
-```text
+```
 results/serving/
 ```
 
+Includes latency and throughput under concurrent load.
+
 ---
 
-# Daily workflow (most common)
+# Daily Workflow
 
-After initial setup, only run:
+After initial setup, run:
 
 ```bash
 ./scripts/run/run_all_backends.sh
@@ -551,22 +591,22 @@ python benchmarks/run_analysis.py
 
 ---
 
-# Fully automated workflow (recommended)
+# Fully Automated Workflow (Recommended)
 
-Use:
+Run everything using:
 
 ```bash
 ./scripts/run/run_full_experiment.sh
 ```
 
-This should internally run:
+This executes:
 
 ```bash
-bootstrap_host.sh        (first time only)
-download_models.sh       (first time only)
-bootstrap_hf.sh         (first time only)
-bootstrap_vllm.sh       (first time only)
-bootstrap_trtllm.sh     (first time only)
+bootstrap_host.sh
+download_models.sh
+bootstrap_hf.sh
+bootstrap_vllm.sh
+bootstrap_trtllm.sh
 
 run_all_backends.sh
 python benchmarks/run_analysis.py
@@ -574,7 +614,7 @@ python benchmarks/run_analysis.py
 
 ---
 
-# Complete pipeline summary (correct order)
+# Complete Pipeline Summary
 
 ```bash
 # One-time setup
@@ -584,10 +624,10 @@ python benchmarks/run_analysis.py
 ./scripts/bootstrap/bootstrap_vllm.sh
 ./scripts/bootstrap/bootstrap_serving.sh
 
-# Inside TRT container
+# Inside TensorRT container
 ./scripts/bootstrap/bootstrap_trtllm.sh
 
-# Run experiments
+# Run benchmarks
 ./scripts/run/run_all_backends.sh
 
 # Run analysis
@@ -600,9 +640,9 @@ python benchmarks/run_analysis.py
 
 ---
 
-# Final outputs you will have
+# Final Outputs
 
-```text
+```
 results/
 
   hf/
@@ -615,5 +655,143 @@ results/
     latency_vs_batch.png
 
   serving/
-    load_test results
+    load test results
 ```
+
+---
+
+# Notes
+
+* TensorRT-LLM provides the highest performance.
+* vLLM provides high throughput with flexible batching.
+* HuggingFace provides baseline reference performance.
+
+This pipeline enables reproducible inference benchmarking and performance analysis.
+
+```
+Here is a **professional pipeline diagram** you can add to your README. It clearly shows the full inference workflow from models → engines → benchmarks → analysis → serving.
+
+You can paste this directly into your README.md.
+
+---
+
+```markdown
+# Inference Pipeline Architecture
+
+```
+
+```
+                         ┌──────────────────────┐
+                         │   models.conf       │
+                         │ (model registry)   │
+                         └─────────┬──────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────────┐
+                         │ download_models.sh   │
+                         └─────────┬──────────┘
+                                   │
+                                   ▼
+                         ┌──────────────────────┐
+                         │   hf_models/        │
+                         │ (shared weights)   │
+                         └─────────┬──────────┘
+                                   │
+        ┌──────────────────────────┼──────────────────────────┐
+        │                          │                          │
+        ▼                          ▼                          ▼
+┌──────────────┐         ┌──────────────┐          ┌──────────────┐
+│ HF Backend   │         │ vLLM Backend │          │ TensorRT     │
+│ transformers │         │ vllm engine  │          │ checkpoint   │
+└──────┬───────┘         └──────┬───────┘          └──────┬───────┘
+       │                        │                         │
+       ▼                        ▼                         ▼
+┌──────────────┐         ┌──────────────┐          ┌──────────────┐
+│ HF benchmark │         │ vLLM benchmark│         │ trtllm-build │
+└──────┬───────┘         └──────┬───────┘          └──────┬───────┘
+       │                        │                         │
+       └──────────────┬─────────┴──────────┬────────────┘
+                      │                    │
+                      ▼                    ▼
+               ┌─────────────────────────────────┐
+               │          results/              │
+               │  hf/   vllm/   trt/           │
+               └──────────────┬────────────────┘
+                              │
+                              ▼
+               ┌─────────────────────────────────┐
+               │    run_analysis.py             │
+               │  (aggregate + plots + stats)  │
+               └──────────────┬────────────────┘
+                              │
+                              ▼
+               ┌─────────────────────────────────┐
+               │     results/aggregate/         │
+               │  aggregate_results.csv        │
+               │  throughput_vs_batch.png      │
+               │  latency_vs_batch.png         │
+               └─────────────────────────────────┘
+
+
+Optional Serving Layer:
+
+      ┌──────────────────────┐
+      │  hf_server.py        │
+      │  vllm_server.py      │
+      │  trt_server.py       │
+      └─────────┬────────────┘
+                │
+                ▼
+        ┌────────────────────┐
+        │  load_test.py      │
+        │  concurrency test  │
+        └─────────┬──────────┘
+                  │
+                  ▼
+        ┌────────────────────┐
+        │ results/serving/   │
+        └────────────────────┘
+```
+
+---
+
+# Simple Flow Summary
+
+```text
+models.conf
+   ↓
+download_models.sh
+   ↓
+hf_models/
+   ↓
+HF / vLLM / TensorRT backends
+   ↓
+benchmarks
+   ↓
+results/
+   ↓
+run_analysis.py
+   ↓
+aggregate_results.csv + plots
+
+(optional)
+servers → load_test → serving results
+```
+
+---
+
+# Recommended placement in README
+
+Put this section after:
+
+```markdown
+## Workflow
+```
+
+and before:
+
+```markdown
+## Results
+```
+
+![alt text](image.png)
