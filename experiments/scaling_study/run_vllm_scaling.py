@@ -3,6 +3,7 @@ import argparse
 import subprocess
 from vllm import LLM, SamplingParams
 
+
 def get_gpu_memory():
     result = subprocess.check_output(
         ["nvidia-smi", "--query-gpu=memory.used",
