@@ -405,3 +405,246 @@ docker run -it \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3 \
   bash
 ```
+
+
+#############################How to use the repo###################################
+## Step 1 — Bootstrap host folders
+
+Run once after creating container or new machine:
+
+```bash
+./scripts/bootstrap_host.sh
+```
+
+Creates:
+
+```text
+/workspace/hf_models
+/workspace/trt_ckpt
+/workspace/trt_engine
+/workspace/.venv_hf
+/workspace/.venv_vllm
+/workspace/.venv_serving
+```
+
+---
+
+# Step 2 — Download all models
+
+Run once per model set:
+
+```bash
+./scripts/download_models.sh
+```
+
+Reads:
+
+```text
+scripts/config/models.conf
+```
+
+Downloads into:
+
+```text
+/workspace/hf_models/
+```
+
+Required before any backend runs.
+
+---
+
+# Step 3 — Create backend environments
+
+Run once:
+
+```bash
+./scripts/bootstrap/bootstrap_hf.sh
+
+./scripts/bootstrap/bootstrap_vllm.sh
+
+./scripts/bootstrap/bootstrap_serving.sh
+```
+
+Creates:
+
+```text
+/workspace/.venv_hf
+/workspace/.venv_vllm
+/workspace/.venv_serving
+```
+
+---
+
+# Step 4 — Build TensorRT engines (inside TRT container)
+
+Start TRT container first.
+
+Then run:
+
+```bash
+./scripts/bootstrap/bootstrap_trtllm.sh
+```
+
+Creates:
+
+```text
+/workspace/trt_ckpt/
+/workspace/trt_engine/
+```
+
+Required before TRT benchmarking or serving.
+
+---
+
+# Run benchmarking pipeline (repeat for experiments)
+
+## Step 5 — Run offline benchmarks
+
+```bash
+./scripts/run/run_all_backends.sh
+```
+
+Runs:
+
+```text
+HF benchmark
+vLLM benchmark
+TensorRT benchmark
+```
+
+Outputs:
+
+```text
+results/hf/
+results/vllm/
+results/trt/
+```
+
+---
+
+## Step 6 — Aggregate results
+
+```bash
+python benchmarks/aggregate.py
+```
+
+Creates:
+
+```text
+results/aggregate/aggregate_results.csv
+```
+
+---
+
+## Step 7 — Plot performance
+
+```bash
+python benchmarks/plot_results.py
+```
+
+Creates:
+
+```text
+results/aggregate/
+  throughput_vs_batch.png
+  latency_vs_batch.png
+```
+
+---
+
+# Optional: Serving benchmark pipeline
+
+## Step 8 — Start inference servers
+
+```bash
+./scripts/serving/run_servers.sh
+```
+
+Starts:
+
+```text
+HF server      localhost:8000
+vLLM server    localhost:8001
+TRT server     localhost:8002
+```
+
+---
+
+## Step 9 — Run load test
+
+```bash
+./scripts/serving/run_load_test.sh
+```
+
+Creates:
+
+```text
+results/serving/
+```
+
+Shows:
+
+```text
+requests/sec
+p50 latency
+p95 latency
+p99 latency
+```
+
+---
+
+# Full automatic pipeline (recommended)
+
+Instead of running everything manually, use:
+
+```bash
+./scripts/run/run_full_experiment.sh
+```
+
+This should internally execute:
+
+```bash
+bootstrap_host.sh
+download_models.sh
+bootstrap_hf.sh
+bootstrap_vllm.sh
+bootstrap_trtllm.sh
+run_all_backends.sh
+aggregate.py
+plot_results.py
+```
+
+---
+
+# Summary: exact order
+
+```bash
+# One-time setup
+./scripts/bootstrap_host.sh
+./scripts/download_models.sh
+./scripts/bootstrap/bootstrap_hf.sh
+./scripts/bootstrap/bootstrap_vllm.sh
+./scripts/bootstrap/bootstrap_serving.sh
+
+# Inside TRT container
+./scripts/bootstrap/bootstrap_trtllm.sh
+
+# Run experiments
+./scripts/run/run_all_backends.sh
+python benchmarks/aggregate.py
+python benchmarks/plot_results.py
+
+# Optional serving tests
+./scripts/serving/run_servers.sh
+./scripts/serving/run_load_test.sh
+```
+
+---
+
+# Daily workflow (most common for you)
+
+After initial setup, just run:
+
+```bash
+./scripts/run/run_full_experiment.sh
+```
