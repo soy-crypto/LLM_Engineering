@@ -333,6 +333,18 @@ docker run --gpus all -it \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
+```bash --- allocate a contanier of big size
+docker run -it \
+  --gpus all \
+  --shm-size=32g \
+  --name trt_llm_big \
+  -v /ephemeral/llm_workspace:/workspace \
+  -v /ephemeral/hf_models:/workspace/hf_models \
+  -v /ephemeral/trt_engine:/workspace/trt_engine \
+  nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3 \
+  bash
+```
+
 Convert checkpoint:
 
 ```bash
@@ -391,3 +403,4 @@ This project demonstrates:
 * Roofline intensity modeling
 * Communication-bound regime analysis
 * Triton production deployment
+* 
