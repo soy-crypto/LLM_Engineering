@@ -1,6 +1,0 @@
-backend,model,batch_size,avg_ttft,avg_latency,tokps_new
-TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,1,0.026508,10.665218,48.006518
-TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,2,0.027901,10.711425,95.598874
-TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,4,0.029802,10.708191,191.255502
-TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,8,0.033541,11.065094,370.173106
-TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,16,0.053467,11.338266,722.509567

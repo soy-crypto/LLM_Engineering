@@ -1,6 +1,0 @@
-backend,model,batch_size,avg_ttft,avg_latency,tokps_new
-TensorRT-LLM,meta-llama/Llama-3.1-8B,1,0.026166,0.026548,19285.933664
-TensorRT-LLM,meta-llama/Llama-3.1-8B,2,0.027075,0.027641,37047.575399
-TensorRT-LLM,meta-llama/Llama-3.1-8B,4,0.029207,0.029757,68826.655964
-TensorRT-LLM,meta-llama/Llama-3.1-8B,8,0.035860,0.036653,111756.028471
-TensorRT-LLM,meta-llama/Llama-3.1-8B,16,0.059413,0.059929,136697.778995
