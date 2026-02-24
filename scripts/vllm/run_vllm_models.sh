@@ -6,6 +6,7 @@ PROJECT="$WORKSPACE/LLM_Engineering"
 
 VLLM_VENV="$WORKSPACE/.venv_vllm"
 RESULTS_DIR="$PROJECT/results"
+CONFIG_FILE="$PROJECT/scripts/config/models.conf"
 
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
@@ -13,10 +14,12 @@ BATCH_SIZES=(1 2 4 8)
 MAX_NEW_TOKENS=512
 DTYPE="bfloat16"
 
+MODEL_ROOT="$WORKSPACE/hf_models"
+
 mkdir -p "$RESULTS_DIR"
 
 echo "================================="
-echo "Running vLLM Scaling Study (ALL MODELS)"
+echo "Running vLLM Scaling Study (CONFIG MODE)"
 echo "================================="
 
 #######################################
@@ -29,7 +32,16 @@ if [ ! -f "$PROMPTS" ]; then
 fi
 
 #######################################
-# Ensure venv exists
+# Validate config file
+#######################################
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: Config file not found at $CONFIG_FILE"
+    exit 1
+fi
+
+#######################################
+# Validate venv
 #######################################
 
 if [ ! -d "$VLLM_VENV" ]; then
@@ -38,28 +50,28 @@ if [ ! -d "$VLLM_VENV" ]; then
 fi
 
 #######################################
-# Activate vLLM environment
+# Activate environment
 #######################################
 
 source "$VLLM_VENV/bin/activate"
 
 #######################################
-# Helper function
+# Benchmark function
 #######################################
 
 run_model () {
 
-    MODEL_NAME="$1"
-    MODEL_PATH="$2"
-    OUTPUT="$3"
+    NAME="$1"
+    MODEL_PATH="$MODEL_ROOT/$NAME"
+    OUTPUT="$RESULTS_DIR/vllm_${NAME}_scaling.csv"
 
     echo ""
     echo "================================="
-    echo "Running vLLM Scaling Study ($MODEL_NAME)"
+    echo "Running vLLM Scaling Study ($NAME)"
     echo "================================="
 
     if [ ! -d "$MODEL_PATH" ]; then
-        echo "WARNING: Skipping $MODEL_NAME (model not found)"
+        echo "WARNING: Model not found. Skipping $NAME"
         return
     fi
 
@@ -70,62 +82,27 @@ run_model () {
         echo "Batch size $B..."
 
         python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
-          --model "$MODEL_PATH" \
-          --prompts "$PROMPTS" \
-          --batch_size "$B" \
-          --max_new_tokens "$MAX_NEW_TOKENS" \
-          --dtype "$DTYPE" \
-          --append_csv "$OUTPUT" \
-          --backend vLLM
+            --model "$MODEL_PATH" \
+            --prompts "$PROMPTS" \
+            --batch_size "$B" \
+            --max_new_tokens "$MAX_NEW_TOKENS" \
+            --dtype "$DTYPE" \
+            --append_csv "$OUTPUT" \
+            --backend vLLM
     done
 
-    echo "Done: $MODEL_NAME"
+    echo "Done: $NAME"
     echo "Saved: $OUTPUT"
 }
 
 #######################################
-# Model paths
+# Loop through config file
 #######################################
 
-LLAMA_PATH="$WORKSPACE/hf_models/llama3_1_8b"
-QWEN_PATH="$WORKSPACE/hf_models/qwen2_5_7b"
-NEMOTRON_PATH="$WORKSPACE/hf_models/nemotron_3_8b"
-MISTRAL_PATH="$WORKSPACE/hf_models/mistral_7b"
-MIXTRAL_PATH="$WORKSPACE/hf_models/mixtral_8x7b"
-PHI_PATH="$WORKSPACE/hf_models/phi_3_mini"
-GEMMA_PATH="$WORKSPACE/hf_models/gemma_7b"
-
-#######################################
-# Run all models
-#######################################
-
-run_model "LLaMA-3.1-8B" \
-"$LLAMA_PATH" \
-"$RESULTS_DIR/vllm_llama3_1_scaling.csv"
-
-run_model "Qwen2.5-7B" \
-"$QWEN_PATH" \
-"$RESULTS_DIR/vllm_qwen2_5_7b_scaling.csv"
-
-run_model "Nemotron-3-8B" \
-"$NEMOTRON_PATH" \
-"$RESULTS_DIR/vllm_nemotron_3_8b_scaling.csv"
-
-run_model "Mistral-7B" \
-"$MISTRAL_PATH" \
-"$RESULTS_DIR/vllm_mistral_7b_scaling.csv"
-
-run_model "Mixtral-8x7B" \
-"$MIXTRAL_PATH" \
-"$RESULTS_DIR/vllm_mixtral_8x7b_scaling.csv"
-
-run_model "Phi-3-Mini" \
-"$PHI_PATH" \
-"$RESULTS_DIR/vllm_phi_3_mini_scaling.csv"
-
-run_model "Gemma-7B" \
-"$GEMMA_PATH" \
-"$RESULTS_DIR/vllm_gemma_7b_scaling.csv"
+while IFS="|" read -r NAME MODEL_ID
+do
+    run_model "$NAME"
+done < "$CONFIG_FILE"
 
 #######################################
 
