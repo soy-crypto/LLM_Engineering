@@ -11,7 +11,7 @@ if [ ! -d "$VENV" ]; then
 
   pip install --upgrade pip
 
-  pip install -r env/serving_requirements.txt
+  pip install -r /workspace/LLM_Engineering/env/serving_requirements.txt
 
   deactivate
 fi
