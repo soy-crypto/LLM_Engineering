@@ -436,6 +436,10 @@ The pipeline includes:
 Initialize workspace folders and base environments:
 
 ```bash
+find scripts -type f -name "*.sh" -exec chmod +x {} +
+````
+
+```bash
 ./scripts/bootstrap_host.sh
 ````
 
