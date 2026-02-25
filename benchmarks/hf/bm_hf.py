@@ -66,22 +66,32 @@ def get_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
 
 
 def get_model(model_name: str, device: str, dtype_str: str) -> Tuple[PreTrainedModel, torch.dtype]:
+
     if dtype_str == "auto":
         if device == "cuda":
-            torch_dtype = (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16)
+            torch_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
         else:
             torch_dtype = torch.float32
     else:
-        dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+        dtype_map = {
+            "bfloat16": torch.bfloat16,
+            "float16": torch.float16,
+            "float32": torch.float32
+        }
         torch_dtype = dtype_map[dtype_str]
 
-    if device == "cpu" and torch_dtype != torch.float32:
-        print("CPU fallback to float32")
+    if device == "cpu":
         torch_dtype = torch.float32
 
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch_dtype,low_cpu_mem_usage=True).to(device)
-    model.eval()
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        dtype=torch_dtype,
+        device_map="auto",
+        low_cpu_mem_usage=True,
+        trust_remote_code=True
+    )
 
+    model.eval()
     return model, torch_dtype
 
 
@@ -225,3 +235,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print(f"Error: {e}")
+        
