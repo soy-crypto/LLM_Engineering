@@ -18,20 +18,15 @@ from transformers import (
 # ----------------------------
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="HF LLM Benchmark")
-
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--prompts", type=str, required=True)
-
     parser.add_argument("--batch_size", type=str, default="1,2,4,8")
     parser.add_argument("--max_new_tokens", type=int, default=64)
-
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--runs", type=int, default=10)
-
     parser.add_argument("--do_sample", action="store_true")
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=1.0)
-
     parser.add_argument(
         "--dtype",
         type=str,
