@@ -12,6 +12,9 @@ BATCH_SIZES="1,2,4,8"
 MAX_NEW_TOKENS=512
 DTYPE="bfloat16"
 
+PYTHON="$WORKSPACE/.venv_hf/bin/python"
+PIP="$WORKSPACE/.venv_hf/bin/pip"
+
 mkdir -p "$RESULTS_DIR"
 
 ########################################
@@ -28,13 +31,19 @@ if [ ! -f "$CONFIG_FILE" ]; then
   exit 1
 fi
 
+if [ ! -x "$PYTHON" ]; then
+  echo "ERROR: Python venv not found at $PYTHON"
+  exit 1
+fi
+
 ########################################
-# Activate HF environment
+# Ensure required packages exist
 ########################################
 
-source "$WORKSPACE/.venv_hf/bin/activate"
+echo "Verifying HF environment..."
 
-pip install -q accelerate
+$PIP install -q accelerate
+$PIP install -q mamba-ssm causal-conv1d --no-build-isolation
 
 ########################################
 # Run model function
@@ -55,7 +64,7 @@ run_model () {
     exit 1
   fi
 
-  python "$PROJECT/benchmarks/hf/bm_hf.py" \
+  $PYTHON "$PROJECT/benchmarks/hf/bm_hf.py" \
     --model "$MODEL_PATH" \
     --prompts "$PROMPTS" \
     --batch_size "$BATCH_SIZES" \
@@ -73,10 +82,7 @@ run_model () {
 
 while IFS="|" read -r NAME MODEL_ID
 do
-  # Skip empty lines
   [ -z "$NAME" ] && continue
-
-  # Skip comments
   [[ "$NAME" =~ ^# ]] && continue
 
   MODEL_PATH="$WORKSPACE/hf_models/$NAME"
@@ -85,8 +91,6 @@ do
   run_model "$NAME" "$MODEL_PATH" "$OUT_CSV"
 
 done < "$CONFIG_FILE"
-
-deactivate
 
 echo "================================="
 echo "All HF benchmarks complete."
