@@ -73,6 +73,11 @@ run_model () {
 
 while IFS="|" read -r NAME MODEL_ID
 do
+  # Skip empty lines
+  [ -z "$NAME" ] && continue
+
+  # Skip comments
+  [[ "$NAME" =~ ^# ]] && continue
 
   MODEL_PATH="$WORKSPACE/hf_models/$NAME"
   OUT_CSV="$RESULTS_DIR/hf_${NAME}_results.csv"
