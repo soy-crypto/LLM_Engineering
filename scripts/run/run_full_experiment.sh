@@ -1,5 +1,4 @@
 #!/bin/bash
-./scripts/bootstrap/bootstrap_common.sh
 ./scripts/bootstrap/bootstrap_hf.sh
 ./scripts/bootstrap/bootstrap_vllm.sh
 
