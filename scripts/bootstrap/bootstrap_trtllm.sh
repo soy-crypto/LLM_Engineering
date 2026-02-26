@@ -19,7 +19,7 @@ echo "========================================"
 if ! command -v $PYTHON_BIN &> /dev/null; then
     echo "ERROR: python3.10 not found."
     echo "Install with:"
-    echo "apt update && apt install -y python3.10 python3.10-venv"
+    echo "apt update && apt install -y python3.10 python3.10-venv python3.10-dev"
     exit 1
 fi
 
@@ -35,13 +35,13 @@ fi
 source "$VLLM_VENV/bin/activate"
 
 ############################################
-# Upgrade pip
+# Upgrade build tools
 ############################################
 
-pip install --upgrade pip setuptools wheel packaging
+pip install --upgrade pip setuptools wheel packaging ninja psutil
 
 ############################################
-# Install PyTorch CUDA 12.1
+# Install PyTorch CUDA 12.1 (stable for vLLM 0.5.x)
 ############################################
 
 pip install torch==2.4.0 \
@@ -56,14 +56,18 @@ pip install torch==2.4.0 \
 pip install vllm==0.5.4
 
 ############################################
-# Install HF utilities
+# Install REQUIRED dependencies (CRITICAL FIX)
 ############################################
 
-pip install transformers \
-            huggingface_hub \
-            accelerate \
-            sentencepiece \
-            safetensors
+pip install \
+    transformers \
+    huggingface_hub \
+    accelerate \
+    sentencepiece \
+    safetensors \
+    protobuf \
+    outlines \
+    pyairports
 
 ############################################
 # Verify installation
@@ -72,6 +76,7 @@ pip install transformers \
 python - <<EOF
 import torch
 import vllm
+from vllm import LLM
 
 print("===================================")
 print("vLLM environment ready")
@@ -79,8 +84,13 @@ print("Torch:", torch.__version__)
 print("CUDA:", torch.version.cuda)
 print("vLLM:", vllm.__version__)
 print("GPU available:", torch.cuda.is_available())
+
 if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
+
+# test engine init (no model load)
+print("vLLM import test passed")
+
 print("===================================")
 EOF
 
