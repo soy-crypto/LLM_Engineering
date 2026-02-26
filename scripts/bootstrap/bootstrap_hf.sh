@@ -24,6 +24,8 @@ if ! command -v $PYTHON_BIN &> /dev/null; then
     fi
 
     apt install -y python3.10 python3.10-venv python3.10-dev
+
+    echo "Python 3.10 installed."
 fi
 
 ########################################
@@ -36,7 +38,7 @@ if [ -d "$HF_VENV" ]; then
 fi
 
 ########################################
-# Create venv
+# Create clean Python 3.10 venv
 ########################################
 
 echo "Creating virtual environment..."
@@ -55,10 +57,10 @@ echo "Upgrading pip and build tools..."
 $PIP install --upgrade pip setuptools wheel
 
 ########################################
-# Install PyTorch (force correct version)
+# Install PyTorch (correct ABI)
 ########################################
 
-echo "Installing PyTorch 2.4.0..."
+echo "Installing PyTorch 2.4.0 (CUDA 12.1 ABI)..."
 
 $PIP install --no-cache-dir --force-reinstall \
     torch==2.4.0 \
@@ -78,7 +80,7 @@ $PIP install \
     huggingface_hub \
     accelerate \
     protobuf \
-    triton==3.0.0
+    triton==2.3.1
 
 ########################################
 # Install causal-conv1d PREBUILT wheel
@@ -91,7 +93,7 @@ https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.4.0/\
 causal_conv1d-1.4.0+cu122torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
 ########################################
-# Install mamba-ssm
+# Install mamba-ssm (disable build isolation)
 ########################################
 
 echo "Installing mamba-ssm..."
@@ -111,12 +113,14 @@ import transformers
 import safetensors
 import causal_conv1d
 import mamba_ssm
+import triton
 
 print("Environment verification OK")
 print("Python:", sys.version.split()[0])
 print("Torch:", torch.__version__, "| CUDA ABI:", torch.version.cuda)
 print("Transformers:", transformers.__version__)
 print("Safetensors:", safetensors.__version__)
+print("Triton:", triton.__version__)
 EOF
 
 echo "========================================"
