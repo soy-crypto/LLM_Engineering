@@ -60,6 +60,20 @@ $PIP install --no-deps \
     accelerate \
     protobuf
 
+# Install required runtime dependencies explicitly
+$PIP install \
+    httpcore \
+    httpx \
+    requests \
+    tqdm \
+    pyyaml \
+    regex \
+    tokenizers \
+    filelock \
+    fsspec \
+    packaging \
+    numpy
+
 ########################################
 # Install Triton matching Torch 2.4
 ########################################
