@@ -4,7 +4,9 @@ set -euo pipefail
 HF_VENV="/workspace/.venv_hf"
 PYTHON_BIN="python3.10"
 
-echo "Bootstrapping HuggingFace backend"
+echo "========================================"
+echo "Bootstrapping HuggingFace + Mamba stack"
+echo "========================================"
 
 ########################################
 # Verify Python 3.10 exists
@@ -13,48 +15,49 @@ echo "Bootstrapping HuggingFace backend"
 if ! command -v $PYTHON_BIN &> /dev/null; then
     echo "ERROR: python3.10 not found."
     echo "Install it first:"
-    echo "apt update && apt install -y python3.10 python3.10-venv"
+    echo "apt update && apt install -y python3.10 python3.10-venv python3.10-dev"
     exit 1
 fi
 
 ########################################
-# Remove incompatible env (Python 3.12)
+# Remove old venv
 ########################################
 
 if [ -d "$HF_VENV" ]; then
-    echo "Removing old incompatible venv..."
+    echo "Removing existing venv..."
     rm -rf "$HF_VENV"
 fi
 
 ########################################
-# Create clean venv with Python 3.10
+# Create clean venv
 ########################################
 
 $PYTHON_BIN -m venv "$HF_VENV"
 
-source "$HF_VENV/bin/activate"
+PYTHON="$HF_VENV/bin/python"
+PIP="$HF_VENV/bin/pip"
 
 ########################################
-# Upgrade core tooling
+# Upgrade build tools
 ########################################
 
-pip install --upgrade pip setuptools wheel
+$PIP install --upgrade pip setuptools wheel
 
 ########################################
-# Install PyTorch (CUDA 12.1 stable)
+# Install Torch (FORCE correct version)
 ########################################
 
-pip install \
+$PIP install --no-cache-dir --force-reinstall \
     torch==2.4.0 \
     torchvision==0.19.0 \
     torchaudio==2.4.0 \
     --index-url https://download.pytorch.org/whl/cu121
 
 ########################################
-# Install HuggingFace stack
+# Install Transformers stack (locked)
 ########################################
 
-pip install \
+$PIP install \
     transformers==4.43.3 \
     huggingface_hub \
     accelerate \
@@ -62,29 +65,36 @@ pip install \
     triton==3.0.0
 
 ########################################
-# Install Mamba dependencies
+# Install causal-conv1d (PREBUILT WHEEL)
 ########################################
 
-pip install \
-    mamba-ssm==2.2.2 \
-    causal-conv1d==1.4.0 \
-    --no-build-isolation
+$PIP install \
+https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.4.0/\
+causal_conv1d-1.4.0+cu122torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
 ########################################
-# Verify installation
+# Install mamba-ssm (disable build isolation)
 ########################################
 
-python - <<EOF
+$PIP install mamba-ssm==2.2.2 --no-build-isolation
+
+########################################
+# Verify environment
+########################################
+
+$PYTHON - <<EOF
 import torch
 import transformers
-import mamba_ssm
 import causal_conv1d
+import mamba_ssm
 
 print("Environment verification OK")
-print("torch:", torch.__version__)
-print("transformers:", transformers.__version__)
+print("Python:", __import__("sys").version)
+print("Torch:", torch.__version__, "CUDA ABI:", torch.version.cuda)
+print("Transformers:", transformers.__version__)
 EOF
 
-deactivate
-
-echo "HF backend ready (Python 3.10, Torch 2.4, CUDA 12.1 compatible)"
+echo "========================================"
+echo "HF backend ready"
+echo "Python 3.10 | Torch 2.4.0 | Transformers 4.43.3"
+echo "========================================"
