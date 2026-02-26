@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# --------------------------------------------------
+# Prevent interactive remote-code prompt
+# --------------------------------------------------
+export TRANSFORMERS_TRUST_REMOTE_CODE=1
+
+# --------------------------------------------------
+# Paths
+# --------------------------------------------------
 CONFIG="/workspace/LLM_Engineering/scripts/config/models.conf"
 MODEL_DIR="/workspace/hf_models"
 PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
@@ -11,18 +19,26 @@ BENCH="/workspace/LLM_Engineering/benchmarks/hf/bm_hf.py"
 echo "Using config: $CONFIG"
 echo ""
 
-while IFS= read -r line || [[ -n "$line" ]]; do
+# --------------------------------------------------
+# Validate config file
+# --------------------------------------------------
+if [ ! -f "$CONFIG" ]; then
+    echo "ERROR: Config file not found: $CONFIG"
+    exit 1
+fi
 
-    # skip empty or comment
-    [[ -z "$line" ]] && continue
-    [[ "$line" =~ ^# ]] && continue
+# --------------------------------------------------
+# Read config line-by-line
+# Format:
+# alias|huggingface_model_id
+# --------------------------------------------------
+while IFS="|" read -r alias hf_id || [[ -n "$alias" ]]; do
 
-    ########################################
-    # split alias and HF model id
-    ########################################
+    # Skip empty lines
+    [[ -z "$alias" ]] && continue
 
-    alias="${line%%|*}"
-    hf_id="${line##*|}"
+    # Skip comments
+    [[ "$alias" =~ ^# ]] && continue
 
     model_path="$MODEL_DIR/$alias"
 
@@ -32,36 +48,43 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     echo "Local path: $model_path"
     echo "========================================"
 
-    ########################################
-    # download if missing
-    ########################################
-
+    # --------------------------------------------------
+    # Download model if missing
+    # --------------------------------------------------
     if [ ! -d "$model_path" ]; then
 
-        echo "Downloading model..."
+        echo "Model not found locally. Downloading..."
 
         "$PYTHON" - <<EOF
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-model = "$hf_id"
-path = "$model_path"
+hf_id = "$hf_id"
+model_path = "$model_path"
 
-AutoTokenizer.from_pretrained(model).save_pretrained(path)
-AutoModelForCausalLM.from_pretrained(
-    model,
+print("Downloading:", hf_id)
+
+tokenizer = AutoTokenizer.from_pretrained(
+    hf_id,
+    trust_remote_code=True
+)
+tokenizer.save_pretrained(model_path)
+
+model = AutoModelForCausalLM.from_pretrained(
+    hf_id,
     torch_dtype="auto",
-    device_map="cpu"
-).save_pretrained(path)
+    device_map="cpu",
+    trust_remote_code=True
+)
+model.save_pretrained(model_path)
 
-print("Downloaded:", model)
+print("Download complete:", hf_id)
 EOF
 
     fi
 
-    ########################################
-    # run benchmark
-    ########################################
-
+    # --------------------------------------------------
+    # Run benchmark
+    # --------------------------------------------------
     "$PYTHON" "$BENCH" \
         --model "$model_path" \
         --prompts "$PROMPTS" \
@@ -71,10 +94,14 @@ EOF
     echo "Completed: $alias"
     echo ""
 
+    # --------------------------------------------------
+    # GPU cleanup safety
+    # --------------------------------------------------
     sleep 2
 
 done < "$CONFIG"
 
 echo "========================================"
 echo "All HF benchmarks completed"
+echo "Results saved to: $OUT"
 echo "========================================"
