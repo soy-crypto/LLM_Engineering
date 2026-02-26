@@ -5,126 +5,116 @@ HF_VENV="/workspace/.venv_hf"
 PYTHON_BIN="python3.10"
 
 echo "========================================"
-echo "Bootstrapping HuggingFace + Nemotron stack"
+echo "Bootstrapping HuggingFace inference stack"
 echo "========================================"
 
 ########################################
-# Install Python 3.10 if missing
-########################################
-
-if ! command -v $PYTHON_BIN &> /dev/null; then
-    apt update
-    apt install -y software-properties-common
-    add-apt-repository ppa:deadsnakes/ppa -y
-    apt update
-    apt install -y python3.10 python3.10-venv python3.10-dev
-fi
-
-########################################
-# Clean environment
+# Remove old env
 ########################################
 
 rm -rf "$HF_VENV"
+
+########################################
+# Create clean env
+########################################
+
 $PYTHON_BIN -m venv "$HF_VENV"
 
 PYTHON="$HF_VENV/bin/python"
 PIP="$HF_VENV/bin/pip"
 
 ########################################
-# Upgrade tools
+# Upgrade tooling
 ########################################
 
 $PIP install --upgrade pip setuptools wheel
 
 ########################################
-# Install Torch FIRST and freeze it
-########################################
-
-$PIP install --no-cache-dir \
-    torch==2.4.0 \
-    torchvision==0.19.0 \
-    torchaudio==2.4.0 \
-    --index-url https://download.pytorch.org/whl/cu121
-
-# Freeze torch so pip cannot downgrade it
-$PIP install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --no-deps
-
-########################################
-# Install Transformers stack (no torch touch)
-########################################
-
-########################################
-# Install Transformers stack (PINNED)
-########################################
-
-$PIP install --no-deps \
-    transformers==4.45.2 \
-    tokenizers==0.20.3 \
-    huggingface-hub==0.36.2 \
-    safetensors==0.4.5 \
-    accelerate==0.33.0 \
-    protobuf \
-    psutil
-
-########################################
-# Install required runtime deps
+# Install Torch (CUDA 12.1, Triton 2.3 compatible)
 ########################################
 
 $PIP install \
-    httpcore \
-    httpx \
-    requests \
-    tqdm \
-    pyyaml \
-    regex \
-    filelock \
-    fsspec \
-    packaging \
-    numpy \
-    certifi \
-    charset_normalizer \
-    urllib3 \
-    idna \
-    anyio \
-    h11
+torch==2.4.0 \
+torchvision==0.19.0 \
+torchaudio==2.4.0 \
+--index-url https://download.pytorch.org/whl/cu121
 
 ########################################
-# Install Triton matching Torch 2.4
+# Fix numpy BEFORE transformers
 ########################################
 
-$PIP install triton==2.3.1 --no-deps
+$PIP install numpy==1.26.4
 
 ########################################
-# Install causal-conv1d wheel matching torch 2.4
+# Install core HF stack (STRICT versions)
 ########################################
 
-$PIP install --no-deps \
-https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.4.0/\
-causal_conv1d-1.4.0+cu122torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
+$PIP install \
+transformers==4.45.2 \
+accelerate==0.33.0 \
+huggingface_hub==0.36.2 \
+tokenizers==0.20.3 \
+safetensors \
+sentencepiece
 
 ########################################
-# Install mamba (no dependency resolution)
+# Install networking deps
+########################################
+
+$PIP install \
+httpcore \
+httpx \
+requests \
+tqdm \
+pyyaml \
+regex \
+psutil \
+einops \
+hf-xet==1.3.0
+
+########################################
+# Install Triton compatible with Torch 2.4
+########################################
+
+$PIP install triton==2.3.1
+
+########################################
+# Install causal-conv1d (PREBUILT CORRECT ABI)
+########################################
+
+$PIP install \
+causal-conv1d==1.4.0+cu122torch2.4cxx11abifalse \
+-f https://github.com/Dao-AILab/causal-conv1d/releases/expanded_assets/v1.4.0
+
+########################################
+# Install Mamba AFTER causal-conv1d
 ########################################
 
 $PIP install mamba-ssm==2.2.2 --no-deps
 
 ########################################
-# Verify
+# Verify environment
 ########################################
+
+echo "Verifying installation..."
 
 $PYTHON - <<EOF
 import torch
 import transformers
-import causal_conv1d
 import mamba_ssm
-import triton
+import causal_conv1d
+import einops
+import accelerate
 
-print("Torch:", torch.__version__, "| CUDA:", torch.version.cuda)
+print("===================================")
+print("FULL STACK OK")
+print("===================================")
+print("Python:", __import__("sys").version)
+print("Torch:", torch.__version__)
+print("CUDA:", torch.version.cuda)
 print("Transformers:", transformers.__version__)
-print("Triton:", triton.__version__)
-print("Full stack OK")
 EOF
 
 echo "========================================"
-echo "Environment Ready"
+echo "HF inference stack ready"
 echo "========================================"
