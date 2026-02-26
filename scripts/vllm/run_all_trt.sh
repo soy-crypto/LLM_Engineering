@@ -1,116 +1,150 @@
 #!/bin/bash
 set -euo pipefail
 
+########################################
+# Paths
+########################################
+
 WORKSPACE="/workspace"
 PROJECT="$WORKSPACE/LLM_Engineering"
 
-VLLM_VENV="$WORKSPACE/.venv_vllm"
-RESULTS_DIR="$PROJECT/results"
-CONFIG_FILE="$PROJECT/scripts/config/models.conf"
+TRT_VENV="$WORKSPACE/.venv_trt"
 
+CONFIG_FILE="$PROJECT/scripts/config/models.conf"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
+
+MODEL_ROOT="$WORKSPACE/hf_models"
+ENGINE_ROOT="$WORKSPACE/trt_engines"
+
+RESULTS_DIR="$PROJECT/results"
 
 BATCH_SIZES=(1 2 4 8)
 MAX_NEW_TOKENS=512
 DTYPE="bfloat16"
 
-MODEL_ROOT="$WORKSPACE/hf_models"
-
 mkdir -p "$RESULTS_DIR"
+mkdir -p "$ENGINE_ROOT"
 
 echo "================================="
-echo "Running vLLM Scaling Study (CONFIG MODE)"
+echo "Running TensorRT-LLM Scaling Study"
 echo "================================="
 
-#######################################
-# Validate prompts
-#######################################
-
-if [ ! -f "$PROMPTS" ]; then
-    echo "ERROR: Prompts file not found at $PROMPTS"
-    exit 1
-fi
-
-#######################################
-# Validate config file
-#######################################
+########################################
+# Validate
+########################################
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "ERROR: Config file not found at $CONFIG_FILE"
+    echo "ERROR: config file not found"
     exit 1
 fi
 
-#######################################
-# Validate venv
-#######################################
-
-if [ ! -d "$VLLM_VENV" ]; then
-    echo "ERROR: vLLM venv not found at $VLLM_VENV"
+if [ ! -f "$PROMPTS" ]; then
+    echo "ERROR: prompts file not found"
     exit 1
 fi
 
-#######################################
-# Activate environment
-#######################################
+if [ ! -d "$TRT_VENV" ]; then
+    echo "ERROR: TRT venv not found"
+    exit 1
+fi
 
-source "$VLLM_VENV/bin/activate"
+########################################
+# Activate TRT environment
+########################################
 
-#######################################
-# Benchmark function
-#######################################
+source "$TRT_VENV/bin/activate"
+
+########################################
+# Build TRT engine
+########################################
+
+build_engine () {
+
+    NAME="$1"
+
+    HF_MODEL="$MODEL_ROOT/$NAME"
+    ENGINE_DIR="$ENGINE_ROOT/$NAME"
+
+    if [ -d "$ENGINE_DIR" ]; then
+        echo "Engine already exists: $NAME"
+        return
+    fi
+
+    echo ""
+    echo "================================="
+    echo "Building TensorRT engine: $NAME"
+    echo "================================="
+
+    python "$PROJECT/benchmarks/trt/build_trt_engine.py" \
+        --hf_model_dir "$HF_MODEL" \
+        --engine_dir "$ENGINE_DIR" \
+        --dtype "$DTYPE"
+
+}
+
+########################################
+# Benchmark TRT engine
+########################################
 
 run_model () {
 
     NAME="$1"
-    MODEL_PATH="$MODEL_ROOT/$NAME"
-    OUTPUT="$RESULTS_DIR/vllm_${NAME}_scaling.csv"
+
+    ENGINE_DIR="$ENGINE_ROOT/$NAME"
+    OUTPUT="$RESULTS_DIR/trt_${NAME}_scaling.csv"
 
     echo ""
     echo "================================="
-    echo "Running vLLM Scaling Study ($NAME)"
+    echo "Running TRT benchmark: $NAME"
     echo "================================="
 
-    if [ ! -d "$MODEL_PATH" ]; then
-        echo "WARNING: Model not found. Skipping $NAME"
-        return
+    if [ ! -d "$ENGINE_DIR" ]; then
+        echo "Engine missing, building..."
+        build_engine "$NAME"
     fi
 
-    echo "backend,batch_size,max_new_tokens,total_latency_ms,tokens_per_sec,gpu_mem_mb" > "$OUTPUT"
+    echo "backend,batch_size,max_new_tokens,latency_ms,tokens_per_sec,gpu_mem_mb" > "$OUTPUT"
 
     for B in "${BATCH_SIZES[@]}"
     do
-        echo "Batch size $B..."
 
-        python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
-            --model "$MODEL_PATH" \
+        echo "Batch size $B"
+
+        python "$PROJECT/benchmarks/trt/bm_trt.py" \
+            --engine_dir "$ENGINE_DIR" \
             --prompts "$PROMPTS" \
             --batch_size "$B" \
             --max_new_tokens "$MAX_NEW_TOKENS" \
-            --dtype "$DTYPE" \
             --append_csv "$OUTPUT" \
-            --backend vLLM
+            --backend TRT
+
     done
 
-    echo "Done: $NAME"
     echo "Saved: $OUTPUT"
+
 }
 
-#######################################
-# Loop through config file
-#######################################
+########################################
+# Loop config
+########################################
 
 while IFS="|" read -r NAME MODEL_ID
 do
+
+    [[ -z "$NAME" ]] && continue
+    [[ "$NAME" =~ ^# ]] && continue
+
     run_model "$NAME"
+
 done < "$CONFIG_FILE"
 
-#######################################
+########################################
 
 deactivate
 
 echo ""
 echo "================================="
-echo "All vLLM scaling studies complete."
-echo "Results saved in:"
+echo "All TensorRT benchmarks complete"
+echo "Results in:"
 echo "$RESULTS_DIR"
 echo "================================="
