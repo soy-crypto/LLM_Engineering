@@ -53,14 +53,23 @@ $PIP install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --no-deps
 # Install Transformers stack (no torch touch)
 ########################################
 
+########################################
+# Install Transformers stack (PINNED)
+########################################
+
 $PIP install --no-deps \
     transformers==4.45.2 \
-    safetensors>=0.4.3 \
-    huggingface_hub \
-    accelerate \
-    protobuf
+    tokenizers==0.20.3 \
+    huggingface-hub==0.36.2 \
+    safetensors==0.4.5 \
+    accelerate==0.33.0 \
+    protobuf \
+    psutil
 
-# Install required runtime dependencies explicitly
+########################################
+# Install required runtime deps
+########################################
+
 $PIP install \
     httpcore \
     httpx \
@@ -68,11 +77,16 @@ $PIP install \
     tqdm \
     pyyaml \
     regex \
-    tokenizers \
     filelock \
     fsspec \
     packaging \
-    numpy
+    numpy \
+    certifi \
+    charset_normalizer \
+    urllib3 \
+    idna \
+    anyio \
+    h11
 
 ########################################
 # Install Triton matching Torch 2.4
