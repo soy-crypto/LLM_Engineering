@@ -18,15 +18,24 @@ from transformers import (
 # ----------------------------
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="HF LLM Benchmark")
+
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--prompts", type=str, required=True)
+
     parser.add_argument("--batch_size", type=str, default="1,2,4,8")
+
     parser.add_argument("--max_new_tokens", type=int, default=64)
+
     parser.add_argument("--warmup", type=int, default=1)
+
     parser.add_argument("--runs", type=int, default=10)
+
     parser.add_argument("--do_sample", action="store_true")
+
     parser.add_argument("--temperature", type=float, default=1.0)
+
     parser.add_argument("--top_p", type=float, default=1.0)
+
     parser.add_argument(
         "--dtype",
         type=str,
@@ -37,6 +46,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
 
     parser.add_argument("--out_csv", type=str, default="results.csv")
+
     parser.add_argument("--backend", type=str, default="HF")
 
     return parser.parse_args()
@@ -53,7 +63,9 @@ def get_device() -> str:
 # Seed
 # ----------------------------
 def set_seed(seed: int, device: str):
+
     torch.manual_seed(seed)
+
     if device == "cuda":
         torch.cuda.manual_seed_all(seed)
 
@@ -66,8 +78,11 @@ def get_prompts(path: str) -> List[str]:
     prompts: List[str] = []
 
     with open(path, "r", encoding="utf-8") as f:
+
         for line in f:
+
             line = line.strip()
+
             if line:
                 prompts.append(line)
 
@@ -81,6 +96,7 @@ def get_prompts(path: str) -> List[str]:
 # Batch sizes
 # ----------------------------
 def get_sizes(batch_size: str) -> List[int]:
+
     return [int(x.strip()) for x in batch_size.split(",") if x.strip()]
 
 
@@ -104,7 +120,7 @@ def get_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
 
 
 # ----------------------------
-# Model
+# Model (FIXED VERSION)
 # ----------------------------
 def get_model(
     model_name: str,
@@ -112,6 +128,7 @@ def get_model(
     dtype_str: str,
 ) -> Tuple[PreTrainedModel, torch.dtype]:
 
+    # dtype selection
     if dtype_str == "auto":
 
         if device == "cuda":
@@ -136,15 +153,22 @@ def get_model(
     if device == "cpu":
         torch_dtype = torch.float32
 
+    # IMPORTANT FIX:
+    # DO NOT USE device_map="auto"
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch_dtype,
-        device_map="auto",
-        low_cpu_mem_usage=True,
         trust_remote_code=True,
+        low_cpu_mem_usage=True,
     )
 
+    # FORCE FULL GPU PLACEMENT
+    model = model.to(device)
+
     model.eval()
+
+    if device == "cuda":
+        torch.cuda.empty_cache()
 
     return model, torch_dtype
 
@@ -167,7 +191,9 @@ def build_parameters(
         return_tensors="pt",
         padding=True,
         truncation=True,
-    ).to(device)
+    )
+
+    tokens = tokens.to(device)
 
     params: Dict[str, Any] = dict(tokens)
 
@@ -212,7 +238,9 @@ def measure(
     if measure_kv:
 
         params["return_dict_in_generate"] = True
+
         params["output_attentions"] = False
+
         params["output_hidden_states"] = False
 
     if device == "cuda":
@@ -235,6 +263,7 @@ def measure(
         sequences = outputs
 
     batch_size = sequences.size(0)
+
     total_seq_len = sequences.size(1)
 
     output_tokens = batch_size * total_seq_len
@@ -291,12 +320,7 @@ def main():
 
     file_exists = os.path.exists(args.out_csv)
 
-    with open(
-        args.out_csv,
-        "a",
-        newline="",
-        encoding="utf-8",
-    ) as f:
+    with open(args.out_csv, "a", newline="", encoding="utf-8") as f:
 
         writer = csv.writer(f)
 
@@ -327,7 +351,6 @@ def main():
                 args,
             )
 
-            # warmup
             for _ in range(args.warmup):
                 measure(model, params, device)
 
