@@ -1,14 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# --------------------------------------------------
-# Prevent interactive remote-code prompt
-# --------------------------------------------------
 export TRANSFORMERS_TRUST_REMOTE_CODE=1
 
-# --------------------------------------------------
-# Paths
-# --------------------------------------------------
 CONFIG="/workspace/LLM_Engineering/scripts/config/models.conf"
 MODEL_DIR="/workspace/hf_models"
 PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
@@ -19,25 +13,14 @@ BENCH="/workspace/LLM_Engineering/benchmarks/hf/bm_hf.py"
 echo "Using config: $CONFIG"
 echo ""
 
-# --------------------------------------------------
-# Validate config file
-# --------------------------------------------------
 if [ ! -f "$CONFIG" ]; then
     echo "ERROR: Config file not found: $CONFIG"
     exit 1
 fi
 
-# --------------------------------------------------
-# Read config line-by-line
-# Format:
-# alias|huggingface_model_id
-# --------------------------------------------------
 while IFS="|" read -r alias hf_id || [[ -n "$alias" ]]; do
 
-    # Skip empty lines
     [[ -z "$alias" ]] && continue
-
-    # Skip comments
     [[ "$alias" =~ ^# ]] && continue
 
     model_path="$MODEL_DIR/$alias"
@@ -48,43 +31,26 @@ while IFS="|" read -r alias hf_id || [[ -n "$alias" ]]; do
     echo "Local path: $model_path"
     echo "========================================"
 
-    # --------------------------------------------------
-    # Download model if missing
-    # --------------------------------------------------
     if [ ! -d "$model_path" ]; then
 
-        echo "Model not found locally. Downloading..."
+        echo "Downloading model..."
 
-        "$PYTHON" - <<EOF
-from transformers import AutoTokenizer, AutoModelForCausalLM
+"$PYTHON" - <<EOF
+from huggingface_hub import snapshot_download
 
-hf_id = "$hf_id"
-model_path = "$model_path"
-
-print("Downloading:", hf_id)
-
-tokenizer = AutoTokenizer.from_pretrained(
-    hf_id,
-    trust_remote_code=True
+snapshot_download(
+    repo_id="$hf_id",
+    local_dir="$model_path",
+    local_dir_use_symlinks=False,
+    resume_download=True,
+    max_workers=8
 )
-tokenizer.save_pretrained(model_path)
 
-model = AutoModelForCausalLM.from_pretrained(
-    hf_id,
-    torch_dtype="auto",
-    device_map="cpu",
-    trust_remote_code=True
-)
-model.save_pretrained(model_path)
-
-print("Download complete:", hf_id)
+print("Download complete")
 EOF
 
     fi
 
-    # --------------------------------------------------
-    # Run benchmark
-    # --------------------------------------------------
     "$PYTHON" "$BENCH" \
         --model "$model_path" \
         --prompts "$PROMPTS" \
@@ -94,9 +60,14 @@ EOF
     echo "Completed: $alias"
     echo ""
 
-    # --------------------------------------------------
-    # GPU cleanup safety
-    # --------------------------------------------------
+    # CRITICAL: free GPU memory
+"$PYTHON" - <<EOF
+import torch, gc
+gc.collect()
+if torch.cuda.is_available():
+    torch.cuda.empty_cache()
+EOF
+
     sleep 2
 
 done < "$CONFIG"
