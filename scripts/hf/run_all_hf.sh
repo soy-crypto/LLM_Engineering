@@ -1,118 +1,97 @@
 #!/bin/bash
 set -euo pipefail
 
-HF_VENV="/workspace/.venv_hf"
-PYTHON_BIN="python3.10"
-
-echo "========================================"
-echo "Bootstrapping HuggingFace backend"
-echo "========================================"
-
 ########################################
-# Install Python 3.10 if missing
+# Paths
 ########################################
 
-if ! command -v $PYTHON_BIN &> /dev/null; then
-    echo "Python 3.10 not found. Installing..."
+WORKSPACE="/workspace"
+PROJECT="$WORKSPACE/LLM_Engineering"
 
-    apt update
-    apt install -y software-properties-common
+HF_VENV="$WORKSPACE/.venv_hf"
+PYTHON="$HF_VENV/bin/python"
 
-    # Add repo if needed
-    if ! apt-cache policy python3.10 | grep -q Candidate; then
-        add-apt-repository ppa:deadsnakes/ppa -y
-        apt update
+CONFIG_FILE="$PROJECT/scripts/config/models.conf"
+PROMPTS="$PROJECT/prompts/prompts_mid.txt"
+
+RESULTS_DIR="$PROJECT/results"
+
+BATCH_SIZES="1,2,4,8"
+MAX_NEW_TOKENS=512
+DTYPE="bfloat16"
+
+mkdir -p "$RESULTS_DIR"
+
+########################################
+# Validate environment
+########################################
+
+if [ ! -x "$PYTHON" ]; then
+    echo "ERROR: HuggingFace venv not found."
+    echo "Run bootstrap first:"
+    echo "./scripts/bootstrap/bootstrap_hf.sh"
+    exit 1
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: models.conf not found at $CONFIG_FILE"
+    exit 1
+fi
+
+if [ ! -f "$PROMPTS" ]; then
+    echo "ERROR: prompts file not found at $PROMPTS"
+    exit 1
+fi
+
+########################################
+# Run benchmark function
+########################################
+
+run_model () {
+
+    local NAME="$1"
+    local MODEL_PATH="$WORKSPACE/hf_models/$NAME"
+    local OUT_CSV="$RESULTS_DIR/hf_${NAME}_results.csv"
+
+    echo "========================================"
+    echo "Running HuggingFace benchmark: $NAME"
+    echo "========================================"
+
+    if [ ! -f "$MODEL_PATH/config.json" ]; then
+        echo "ERROR: Model not found at $MODEL_PATH"
+        exit 1
     fi
 
-    apt install -y python3.10 python3.10-venv python3.10-dev
+    $PYTHON "$PROJECT/benchmarks/hf/bm_hf.py" \
+        --model "$MODEL_PATH" \
+        --prompts "$PROMPTS" \
+        --batch_size "$BATCH_SIZES" \
+        --max_new_tokens "$MAX_NEW_TOKENS" \
+        --dtype "$DTYPE" \
+        --out_csv "$OUT_CSV" \
+        --backend HF
 
-    echo "Python 3.10 installed."
-fi
-
-########################################
-# Remove incompatible env safely
-########################################
-
-if [ -d "$HF_VENV" ]; then
-    echo "Removing old venv..."
-    rm -rf "$HF_VENV"
-fi
+    echo "Completed: $NAME"
+}
 
 ########################################
-# Create clean Python 3.10 environment
+# Loop through models.conf
 ########################################
 
-echo "Creating new venv..."
+while IFS="|" read -r NAME MODEL_ID
+do
+    [ -z "$NAME" ] && continue
+    [[ "$NAME" =~ ^# ]] && continue
 
-$PYTHON_BIN -m venv "$HF_VENV"
+    run_model "$NAME"
 
-PYTHON="$HF_VENV/bin/python"
-PIP="$HF_VENV/bin/pip"
-
-########################################
-# Upgrade core build tools
-########################################
-
-echo "Upgrading pip and build tools..."
-
-$PIP install --upgrade pip setuptools wheel
+done < "$CONFIG_FILE"
 
 ########################################
-# Install PyTorch CUDA 12.1 stack
+# Done
 ########################################
-
-echo "Installing PyTorch..."
-
-$PIP install \
-    torch==2.4.0 \
-    torchvision==0.19.0 \
-    torchaudio==2.4.0 \
-    --index-url https://download.pytorch.org/whl/cu121
-
-########################################
-# Install HuggingFace stack
-########################################
-
-echo "Installing HuggingFace stack..."
-
-$PIP install \
-    transformers==4.43.3 \
-    huggingface_hub \
-    accelerate \
-    protobuf \
-    triton==3.0.0
-
-########################################
-# Install Mamba dependencies
-########################################
-
-echo "Installing Mamba dependencies..."
-
-$PIP install \
-    mamba-ssm==2.2.2 \
-    causal-conv1d==1.4.0 \
-    --no-build-isolation
-
-########################################
-# Verify installation
-########################################
-
-echo "Verifying environment..."
-
-$PYTHON - <<EOF
-import torch
-import transformers
-import mamba_ssm
-import causal_conv1d
-
-print("Environment verification OK")
-print("Python:", __import__("sys").version)
-print("Torch:", torch.__version__)
-print("Transformers:", transformers.__version__)
-print("CUDA:", torch.version.cuda)
-EOF
 
 echo "========================================"
-echo "HF backend ready"
-echo "Venv: $HF_VENV"
+echo "All HF benchmarks completed"
+echo "Results saved to: $RESULTS_DIR"
 echo "========================================"
