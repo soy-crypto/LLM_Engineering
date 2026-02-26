@@ -3,9 +3,9 @@ set -euo pipefail
 
 WORKSPACE="/workspace"
 PROJECT="$WORKSPACE/LLM_Engineering"
+
 RESULTS_DIR="$PROJECT/results"
 CONFIG_FILE="$PROJECT/scripts/config/models.conf"
-
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
 BATCH_SIZES="1,2,4,8,16"
@@ -15,39 +15,34 @@ ENGINE_ROOT="$WORKSPACE/trt_engine"
 
 mkdir -p "$RESULTS_DIR"
 
+export TRANSFORMERS_TRUST_REMOTE_CODE=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 echo "================================="
-echo "Running TensorRT-LLM benchmarks (CONFIG MODE)"
+echo "Running TensorRT-LLM benchmarks"
 echo "================================="
 
 ########################################
-# Validate prompts
+# Validate environment
 ########################################
 
 if [ ! -f "$PROMPTS" ]; then
-    echo "ERROR: Prompts file not found at $PROMPTS"
+    echo "ERROR: prompts file missing"
     exit 1
 fi
-
-########################################
-# Validate config file
-########################################
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "ERROR: Config file not found at $CONFIG_FILE"
+    echo "ERROR: config file missing"
     exit 1
 fi
-
-########################################
-# Validate TensorRT environment
-########################################
 
 if ! command -v trtllm-build >/dev/null; then
-    echo "ERROR: Must run inside TensorRT-LLM container."
+    echo "ERROR: Must run inside TRT-LLM container"
     exit 1
 fi
 
-if ! python3 -c "import tensorrt_llm" 2>/dev/null; then
-    echo "ERROR: tensorrt_llm module not available."
+if ! python3 -c "import tensorrt_llm" &>/dev/null; then
+    echo "ERROR: tensorrt_llm not installed"
     exit 1
 fi
 
@@ -60,47 +55,50 @@ run_model () {
     local NAME="$1"
     local MODEL_ID="$2"
 
-    ENGINE_DIR="$ENGINE_ROOT/${NAME}_bf16_b16_s4096"
-    OUT_CSV="$RESULTS_DIR/trt_${NAME}_results.csv"
+    local ENGINE_DIR="$ENGINE_ROOT/$NAME"
+    local OUT_CSV="$RESULTS_DIR/trt_${NAME}.csv"
 
-    echo "---------------------------------"
+    echo ""
+    echo "================================="
     echo "Running TensorRT benchmark: $NAME"
+    echo "Model ID: $MODEL_ID"
     echo "Engine: $ENGINE_DIR"
-    echo "---------------------------------"
+    echo "================================="
 
     if [ ! -d "$ENGINE_DIR" ]; then
-        echo "WARNING: Engine not found. Skipping $NAME"
+        echo "WARNING: Engine not found, skipping"
         return
     fi
 
-    python "$PROJECT/benchmarks/trt/bm_trtllm.py" \
+    python3 "$PROJECT/benchmarks/trt/bm_trtllm.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \
         --prompts "$PROMPTS" \
         --batch_size "$BATCH_SIZES" \
         --max_new_tokens "$MAX_NEW_TOKENS" \
         --out_csv "$OUT_CSV" \
-        --backend "TensorRT-LLM"
+        --backend TensorRT-LLM
 
-    echo "Done: $NAME"
-    echo ""
+    echo "Finished: $NAME"
 }
 
 ########################################
-# Loop through config file
+# Loop config safely
 ########################################
 
-while IFS="|" read -r NAME MODEL_ID
+while IFS="|" read -r NAME MODEL_ID || [[ -n "$NAME" ]]
 do
+
+    [[ -z "$NAME" ]] && continue
+    [[ "$NAME" =~ ^# ]] && continue
 
     run_model "$NAME" "$MODEL_ID"
 
 done < "$CONFIG_FILE"
 
-########################################
-
+echo ""
 echo "================================="
-echo "All TensorRT-LLM benchmarks complete."
-echo "Results saved in:"
+echo "All TensorRT benchmarks done"
+echo "Results:"
 echo "$RESULTS_DIR"
 echo "================================="
