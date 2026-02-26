@@ -8,14 +8,12 @@ set -euo pipefail
 WORKSPACE="/workspace"
 PROJECT="$WORKSPACE/LLM_Engineering"
 
-TRT_VENV="$WORKSPACE/.venv_trt"
+VLLM_VENV="$WORKSPACE/.venv_vllm"
 
 CONFIG_FILE="$PROJECT/scripts/config/models.conf"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
 MODEL_ROOT="$WORKSPACE/hf_models"
-ENGINE_ROOT="$WORKSPACE/trt_engines"
-
 RESULTS_DIR="$PROJECT/results"
 
 BATCH_SIZES=(1 2 4 8)
@@ -23,7 +21,6 @@ MAX_NEW_TOKENS=512
 DTYPE="bfloat16"
 
 mkdir -p "$RESULTS_DIR"
-mkdir -p "$ENGINE_ROOT"
 
 echo "================================="
 echo "Running vLLM Scaling Study"
@@ -43,94 +40,71 @@ if [ ! -f "$PROMPTS" ]; then
     exit 1
 fi
 
-if [ ! -d "$TRT_VENV" ]; then
-    echo "ERROR: TRT venv not found"
+if [ ! -d "$VLLM_VENV" ]; then
+    echo "ERROR: vLLM venv not found"
     exit 1
 fi
 
 ########################################
-# Activate TRT environment
+# Activate environment
 ########################################
 
-source "$TRT_VENV/bin/activate"
+source "$VLLM_VENV/bin/activate"
 
 ########################################
-# Build TRT engine
-########################################
-
-build_engine () {
-
-    NAME="$1"
-
-    HF_MODEL="$MODEL_ROOT/$NAME"
-    ENGINE_DIR="$ENGINE_ROOT/$NAME"
-
-    if [ -d "$ENGINE_DIR" ]; then
-        echo "Engine already exists: $NAME"
-        return
-    fi
-
-    echo ""
-    echo "================================="
-    echo "Building TensorRT engine: $NAME"
-    echo "================================="
-
-    python "$PROJECT/benchmarks/trt/build_trt_engine.py" \
-        --hf_model_dir "$HF_MODEL" \
-        --engine_dir "$ENGINE_DIR" \
-        --dtype "$DTYPE"
-
-}
-
-########################################
-# Benchmark TRT engine
+# Benchmark function
 ########################################
 
 run_model () {
 
     NAME="$1"
 
-    ENGINE_DIR="$ENGINE_ROOT/$NAME"
-    OUTPUT="$RESULTS_DIR/trt_${NAME}_scaling.csv"
+    MODEL_PATH="$MODEL_ROOT/$NAME"
+    OUTPUT="$RESULTS_DIR/vllm_${NAME}_scaling.csv"
 
     echo ""
     echo "================================="
-    echo "Running TRT benchmark: $NAME"
+    echo "Running vLLM: $NAME"
     echo "================================="
 
-    if [ ! -d "$ENGINE_DIR" ]; then
-        echo "Engine missing, building..."
-        build_engine "$NAME"
+    if [ ! -d "$MODEL_PATH" ]; then
+        echo "WARNING: Model not found locally: $MODEL_PATH"
+        echo "Skipping..."
+        return
     fi
 
     echo "backend,batch_size,max_new_tokens,latency_ms,tokens_per_sec,gpu_mem_mb" > "$OUTPUT"
 
     for B in "${BATCH_SIZES[@]}"
     do
-
         echo "Batch size $B"
 
-        python "$PROJECT/benchmarks/trt/bm_trt.py" \
-            --engine_dir "$ENGINE_DIR" \
+        python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
+            --model "$MODEL_PATH" \
             --prompts "$PROMPTS" \
             --batch_size "$B" \
             --max_new_tokens "$MAX_NEW_TOKENS" \
+            --dtype "$DTYPE" \
             --append_csv "$OUTPUT" \
-            --backend TRT
-
+            --backend vLLM
     done
 
     echo "Saved: $OUTPUT"
 
+    # Clean GPU memory between models
+    sleep 3
+    python - <<EOF
+import torch
+torch.cuda.empty_cache()
+EOF
 }
 
 ########################################
-# Loop config
+# Loop through config
 ########################################
 
 while IFS="|" read -r NAME MODEL_ID
 do
-
     [[ -z "$NAME" ]] && continue
     [[ "$NAME" =~ ^# ]] && continue
 
@@ -144,7 +118,7 @@ deactivate
 
 echo ""
 echo "================================="
-echo "All TensorRT benchmarks complete"
-echo "Results in:"
+echo "All vLLM scaling studies complete"
+echo "Results saved to:"
 echo "$RESULTS_DIR"
 echo "================================="
