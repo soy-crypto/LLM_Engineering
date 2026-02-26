@@ -27,17 +27,17 @@ echo "================================="
 ########################################
 
 if [ ! -f "$PROMPTS" ]; then
-    echo "ERROR: prompts file missing"
+    echo "ERROR: prompts file missing: $PROMPTS"
     exit 1
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "ERROR: config file missing"
+    echo "ERROR: config file missing: $CONFIG_FILE"
     exit 1
 fi
 
 if ! command -v trtllm-build >/dev/null; then
-    echo "ERROR: Must run inside TRT-LLM container"
+    echo "ERROR: Must run inside TensorRT-LLM container"
     exit 1
 fi
 
@@ -65,11 +65,24 @@ run_model () {
     echo "Engine: $ENGINE_DIR"
     echo "================================="
 
-    if [ ! -d "$ENGINE_DIR" ]; then
-        echo "WARNING: Engine not found, skipping"
+    ####################################
+    # FIX 1: validate engine properly
+    ####################################
+    if [ ! -f "$ENGINE_DIR/config.json" ]; then
+        echo "WARNING: Engine not found or incomplete: $ENGINE_DIR"
         return
     fi
 
+    ####################################
+    # FIX 2: ensure output file header once
+    ####################################
+    if [ ! -f "$OUT_CSV" ]; then
+        echo "backend,model,batch_size,avg_ttft,avg_latency,tokps_new" > "$OUT_CSV"
+    fi
+
+    ####################################
+    # FIX 3: use absolute python path
+    ####################################
     python3 "$PROJECT/benchmarks/trt/bm_trtllm.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \

@@ -1,102 +1,119 @@
 #!/bin/bash
 set -euo pipefail
 
-############################################
-# Config
-############################################
-
-VLLM_VENV="/workspace/.venv_vllm"
-PYTHON_BIN="python3.10"
-
 echo "========================================"
-echo "Bootstrapping vLLM backend"
+echo "Bootstrapping TensorRT-LLM backend"
 echo "========================================"
 
-############################################
-# Check Python
-############################################
+########################################
+# Validate CUDA
+########################################
 
-if ! command -v $PYTHON_BIN &> /dev/null; then
-    echo "ERROR: python3.10 not found."
-    echo "Install with:"
-    echo "apt update && apt install -y python3.10 python3.10-venv python3.10-dev"
+if ! command -v nvidia-smi >/dev/null; then
+    echo "ERROR: NVIDIA driver not available"
     exit 1
 fi
 
-############################################
-# Create venv if missing
-############################################
+nvidia-smi
 
-if [ ! -d "$VLLM_VENV" ]; then
-    echo "Creating virtual environment..."
-    $PYTHON_BIN -m venv "$VLLM_VENV"
+########################################
+# Validate Python
+########################################
+
+PYTHON_BIN="python3"
+
+if ! command -v $PYTHON_BIN >/dev/null; then
+    echo "ERROR: python3 not found"
+    exit 1
 fi
 
-source "$VLLM_VENV/bin/activate"
+########################################
+# Validate TensorRT-LLM container
+########################################
 
-############################################
-# Upgrade build tools
-############################################
+if ! command -v trtllm-build >/dev/null; then
+    echo ""
+    echo "ERROR: trtllm-build not found."
+    echo ""
+    echo "You must run inside NVIDIA TensorRT-LLM container:"
+    echo ""
+    echo "docker run --gpus all -it --rm \\"
+    echo "  -v /workspace:/workspace \\"
+    echo "  nvcr.io/nvidia/tensorrt-llm:latest"
+    echo ""
+    exit 1
+fi
 
-pip install --upgrade pip setuptools wheel packaging ninja psutil
+echo "TensorRT-LLM detected:"
+trtllm-build --version || true
 
-############################################
-# Install PyTorch CUDA 12.1 (stable for vLLM 0.5.x)
-############################################
+########################################
+# Validate Python packages
+########################################
 
-pip install torch==2.4.0 \
-            torchvision==0.19.0 \
-            torchaudio==2.4.0 \
-            --index-url https://download.pytorch.org/whl/cu121
+echo "Checking tensorrt_llm module..."
 
-############################################
-# Install vLLM
-############################################
+$PYTHON_BIN - <<EOF
+import tensorrt_llm
+print("tensorrt_llm OK")
+EOF
 
-pip install vllm==0.5.4
+########################################
+# Install optional tools (safe)
+########################################
 
-############################################
-# Install REQUIRED dependencies (CRITICAL FIX)
-############################################
+echo "Installing optional utilities..."
 
-pip install \
+$PYTHON_BIN -m pip install --upgrade \
     transformers \
     huggingface_hub \
     accelerate \
     sentencepiece \
-    safetensors \
     protobuf \
-    outlines \
-    pyairports
+    safetensors \
+    numpy \
+    psutil \
+    tqdm
 
-############################################
-# Verify installation
-############################################
+########################################
+# Create engine directory
+########################################
 
-python - <<EOF
-import torch
-import vllm
-from vllm import LLM
+ENGINE_ROOT="/workspace/trt_engine"
 
-print("===================================")
-print("vLLM environment ready")
-print("Torch:", torch.__version__)
-print("CUDA:", torch.version.cuda)
-print("vLLM:", vllm.__version__)
-print("GPU available:", torch.cuda.is_available())
+mkdir -p "$ENGINE_ROOT"
 
-if torch.cuda.is_available():
-    print("GPU:", torch.cuda.get_device_name(0))
+echo "Engine directory ready:"
+echo "$ENGINE_ROOT"
 
-# test engine init (no model load)
-print("vLLM import test passed")
+########################################
+# GPU validation
+########################################
 
-print("===================================")
-EOF
+echo ""
+echo "GPU info:"
+nvidia-smi --query-gpu=name,memory.total --format=csv
 
-deactivate
+########################################
+# Complete
+########################################
 
+echo ""
 echo "========================================"
-echo "vLLM backend ready."
-echo "Venv: $VLLM_VENV"
+echo "TensorRT-LLM backend ready"
 echo "========================================"
+
+echo ""
+echo "Next steps:"
+echo ""
+echo "1. Convert HF model → TRT engine:"
+echo ""
+echo "   trtllm-build \\"
+echo "     --checkpoint_dir /workspace/hf_models/llama3_1_8b \\"
+echo "     --output_dir /workspace/trt_engine/llama3_1_8b \\"
+echo "     --dtype bfloat16"
+echo ""
+echo "2. Run benchmark:"
+echo ""
+echo "   ./run_all_trt.sh"
+echo ""
