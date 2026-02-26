@@ -5,7 +5,7 @@ set -euo pipefail
 # Paths
 ########################################
 
-CONFIG="/workspace/LLM_Engineering/scripts/hf/models.conf"
+CONFIG="/workspace/LLM_Engineering/scripts/config/models.conf"
 MODEL_DIR="/workspace/hf_models"
 PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
 OUT="/workspace/LLM_Engineering/results/results_hf.csv"
@@ -21,8 +21,11 @@ if [ ! -f "$CONFIG" ]; then
     exit 1
 fi
 
+echo "Using config: $CONFIG"
+echo ""
+
 ########################################
-# Read config line-by-line
+# Read models from config
 ########################################
 
 while IFS= read -r model || [[ -n "$model" ]]; do
@@ -40,7 +43,7 @@ while IFS= read -r model || [[ -n "$model" ]]; do
     echo "========================================"
 
     if [ ! -d "$MODEL_PATH" ]; then
-        echo "ERROR: Model not found at $MODEL_PATH"
+        echo "ERROR: Model not found: $MODEL_PATH"
         continue
     fi
 
@@ -53,10 +56,14 @@ while IFS= read -r model || [[ -n "$model" ]]; do
     echo "Completed: $model"
     echo ""
 
+    ########################################
+    # cleanup GPU memory
+    ########################################
+
     sleep 2
 
 done < "$CONFIG"
 
 echo "========================================"
-echo "All benchmarks complete"
+echo "All HF benchmarks completed"
 echo "========================================"
