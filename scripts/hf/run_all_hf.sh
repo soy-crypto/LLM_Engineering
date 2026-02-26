@@ -5,93 +5,58 @@ set -euo pipefail
 # Paths
 ########################################
 
-WORKSPACE="/workspace"
-PROJECT="$WORKSPACE/LLM_Engineering"
-
-HF_VENV="$WORKSPACE/.venv_hf"
-PYTHON="$HF_VENV/bin/python"
-
-CONFIG_FILE="$PROJECT/scripts/config/models.conf"
-PROMPTS="$PROJECT/prompts/prompts_mid.txt"
-
-RESULTS_DIR="$PROJECT/results"
-
-BATCH_SIZES="1,2,4,8"
-MAX_NEW_TOKENS=512
-DTYPE="bfloat16"
-
-mkdir -p "$RESULTS_DIR"
+CONFIG="/workspace/LLM_Engineering/scripts/hf/models.conf"
+MODEL_DIR="/workspace/hf_models"
+PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
+OUT="/workspace/LLM_Engineering/results/results_hf.csv"
+PYTHON="/workspace/.venv_hf/bin/python"
+BENCH="/workspace/LLM_Engineering/benchmarks/hf/bm_hf.py"
 
 ########################################
-# Validate environment
+# Validate config
 ########################################
 
-if [ ! -x "$PYTHON" ]; then
-    echo "ERROR: HuggingFace venv not found."
-    echo "Run bootstrap first:"
-    echo "./scripts/bootstrap/bootstrap_hf.sh"
-    exit 1
-fi
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "ERROR: models.conf not found at $CONFIG_FILE"
-    exit 1
-fi
-
-if [ ! -f "$PROMPTS" ]; then
-    echo "ERROR: prompts file not found at $PROMPTS"
+if [ ! -f "$CONFIG" ]; then
+    echo "ERROR: Config file not found: $CONFIG"
     exit 1
 fi
 
 ########################################
-# Run benchmark function
+# Read config line-by-line
 ########################################
 
-run_model () {
+while IFS= read -r model || [[ -n "$model" ]]; do
 
-    local NAME="$1"
-    local MODEL_PATH="$WORKSPACE/hf_models/$NAME"
-    local OUT_CSV="$RESULTS_DIR/hf_${NAME}_results.csv"
+    # skip empty lines
+    [[ -z "$model" ]] && continue
+
+    # skip comments
+    [[ "$model" =~ ^# ]] && continue
+
+    MODEL_PATH="$MODEL_DIR/$model"
 
     echo "========================================"
-    echo "Running HuggingFace benchmark: $NAME"
+    echo "Running HuggingFace benchmark: $model"
     echo "========================================"
 
-    if [ ! -f "$MODEL_PATH/config.json" ]; then
+    if [ ! -d "$MODEL_PATH" ]; then
         echo "ERROR: Model not found at $MODEL_PATH"
-        exit 1
+        continue
     fi
 
-    $PYTHON "$PROJECT/benchmarks/hf/bm_hf.py" \
+    "$PYTHON" "$BENCH" \
         --model "$MODEL_PATH" \
         --prompts "$PROMPTS" \
-        --batch_size "$BATCH_SIZES" \
-        --max_new_tokens "$MAX_NEW_TOKENS" \
-        --dtype "$DTYPE" \
-        --out_csv "$OUT_CSV" \
+        --out_csv "$OUT" \
         --backend HF
 
-    echo "Completed: $NAME"
-}
+    echo "Completed: $model"
+    echo ""
 
-########################################
-# Loop through models.conf
-########################################
+    sleep 2
 
-while IFS="|" read -r NAME MODEL_ID
-do
-    [ -z "$NAME" ] && continue
-    [[ "$NAME" =~ ^# ]] && continue
-
-    run_model "$NAME"
-
-done < "$CONFIG_FILE"
-
-########################################
-# Done
-########################################
+done < "$CONFIG"
 
 echo "========================================"
-echo "All HF benchmarks completed"
-echo "Results saved to: $RESULTS_DIR"
+echo "All benchmarks complete"
 echo "========================================"
