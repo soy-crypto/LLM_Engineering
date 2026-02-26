@@ -13,117 +13,90 @@ echo "========================================"
 ########################################
 
 if ! command -v $PYTHON_BIN &> /dev/null; then
-    echo "Python 3.10 not found. Installing..."
-
     apt update
     apt install -y software-properties-common
-
-    if ! apt-cache policy python3.10 | grep -q Candidate; then
-        add-apt-repository ppa:deadsnakes/ppa -y
-        apt update
-    fi
-
+    add-apt-repository ppa:deadsnakes/ppa -y
+    apt update
     apt install -y python3.10 python3.10-venv python3.10-dev
-
-    echo "Python 3.10 installed."
 fi
 
 ########################################
-# Remove old venv
+# Clean environment
 ########################################
 
-if [ -d "$HF_VENV" ]; then
-    echo "Removing existing venv..."
-    rm -rf "$HF_VENV"
-fi
-
-########################################
-# Create clean Python 3.10 venv
-########################################
-
-echo "Creating virtual environment..."
-
+rm -rf "$HF_VENV"
 $PYTHON_BIN -m venv "$HF_VENV"
 
 PYTHON="$HF_VENV/bin/python"
 PIP="$HF_VENV/bin/pip"
 
 ########################################
-# Upgrade build tools
+# Upgrade tools
 ########################################
-
-echo "Upgrading pip and build tools..."
 
 $PIP install --upgrade pip setuptools wheel
 
 ########################################
-# Install PyTorch (correct ABI)
+# Install Torch FIRST and freeze it
 ########################################
 
-echo "Installing PyTorch 2.4.0 (CUDA 12.1 ABI)..."
-
-$PIP install --no-cache-dir --force-reinstall \
+$PIP install --no-cache-dir \
     torch==2.4.0 \
     torchvision==0.19.0 \
     torchaudio==2.4.0 \
     --index-url https://download.pytorch.org/whl/cu121
 
+# Freeze torch so pip cannot downgrade it
+$PIP install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --no-deps
+
 ########################################
-# Install Transformers stack (Nemotron compatible)
+# Install Transformers stack (no torch touch)
 ########################################
 
-echo "Installing Transformers stack..."
-
-$PIP install \
+$PIP install --no-deps \
     transformers==4.45.2 \
     safetensors>=0.4.3 \
     huggingface_hub \
     accelerate \
-    protobuf \
-    triton==2.3.1
+    protobuf
 
 ########################################
-# Install causal-conv1d PREBUILT wheel
+# Install Triton matching Torch 2.4
 ########################################
 
-echo "Installing causal-conv1d..."
+$PIP install triton==2.3.1 --no-deps
 
-$PIP install \
+########################################
+# Install causal-conv1d wheel matching torch 2.4
+########################################
+
+$PIP install --no-deps \
 https://github.com/Dao-AILab/causal-conv1d/releases/download/v1.4.0/\
 causal_conv1d-1.4.0+cu122torch2.4cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
 
 ########################################
-# Install mamba-ssm (disable build isolation)
+# Install mamba (no dependency resolution)
 ########################################
 
-echo "Installing mamba-ssm..."
-
-$PIP install mamba-ssm==2.2.2 --no-build-isolation
+$PIP install mamba-ssm==2.2.2 --no-deps
 
 ########################################
-# Verify installation
+# Verify
 ########################################
-
-echo "Verifying environment..."
 
 $PYTHON - <<EOF
-import sys
 import torch
 import transformers
-import safetensors
 import causal_conv1d
 import mamba_ssm
 import triton
 
-print("Environment verification OK")
-print("Python:", sys.version.split()[0])
-print("Torch:", torch.__version__, "| CUDA ABI:", torch.version.cuda)
+print("Torch:", torch.__version__, "| CUDA:", torch.version.cuda)
 print("Transformers:", transformers.__version__)
-print("Safetensors:", safetensors.__version__)
 print("Triton:", triton.__version__)
+print("Full stack OK")
 EOF
 
 echo "========================================"
-echo "HF backend ready"
-echo "Venv: $HF_VENV"
+echo "Environment Ready"
 echo "========================================"
