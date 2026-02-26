@@ -9,14 +9,10 @@ echo "Bootstrapping HuggingFace inference stack"
 echo "========================================"
 
 ########################################
-# Remove old env
+# Clean env
 ########################################
 
 rm -rf "$HF_VENV"
-
-########################################
-# Create clean env
-########################################
 
 $PYTHON_BIN -m venv "$HF_VENV"
 
@@ -24,13 +20,13 @@ PYTHON="$HF_VENV/bin/python"
 PIP="$HF_VENV/bin/pip"
 
 ########################################
-# Upgrade tooling
+# Upgrade build tools
 ########################################
 
 $PIP install --upgrade pip setuptools wheel
 
 ########################################
-# Install Torch (CUDA 12.1, Triton 2.3 compatible)
+# Install Torch stack (includes Triton 3.0.0)
 ########################################
 
 $PIP install \
@@ -40,13 +36,13 @@ torchaudio==2.4.0 \
 --index-url https://download.pytorch.org/whl/cu121
 
 ########################################
-# Fix numpy BEFORE transformers
+# Fix numpy version
 ########################################
 
 $PIP install numpy==1.26.4
 
 ########################################
-# Install core HF stack (STRICT versions)
+# Install HF stack
 ########################################
 
 $PIP install \
@@ -55,45 +51,37 @@ accelerate==0.33.0 \
 huggingface_hub==0.36.2 \
 tokenizers==0.20.3 \
 safetensors \
-sentencepiece
+sentencepiece \
+hf-xet==1.3.1
 
 ########################################
-# Install networking deps
+# Install required runtime deps
 ########################################
 
 $PIP install \
+einops \
 httpcore \
 httpx \
 requests \
 tqdm \
 pyyaml \
 regex \
-psutil \
-einops \
-hf-xet==1.3.0
+psutil
 
 ########################################
-# Install Triton compatible with Torch 2.4
+# Install causal-conv1d CORRECTLY
 ########################################
 
-$PIP install triton==2.3.1
+$PIP install causal-conv1d==1.4.0
 
 ########################################
-# Install causal-conv1d (PREBUILT CORRECT ABI)
-########################################
-
-$PIP install \
-causal-conv1d==1.4.0+cu122torch2.4cxx11abifalse \
--f https://github.com/Dao-AILab/causal-conv1d/releases/expanded_assets/v1.4.0
-
-########################################
-# Install Mamba AFTER causal-conv1d
+# Install mamba AFTER causal-conv1d
 ########################################
 
 $PIP install mamba-ssm==2.2.2 --no-deps
 
 ########################################
-# Verify environment
+# Verify stack
 ########################################
 
 echo "Verifying installation..."
@@ -101,8 +89,8 @@ echo "Verifying installation..."
 $PYTHON - <<EOF
 import torch
 import transformers
-import mamba_ssm
 import causal_conv1d
+import mamba_ssm
 import einops
 import accelerate
 
