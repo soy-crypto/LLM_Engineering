@@ -26,7 +26,7 @@ mkdir -p "$RESULTS_DIR"
 mkdir -p "$ENGINE_ROOT"
 
 echo "================================="
-echo "Running TensorRT-LLM Scaling Study"
+echo "Running vLLM Scaling Study"
 echo "================================="
 
 ########################################
