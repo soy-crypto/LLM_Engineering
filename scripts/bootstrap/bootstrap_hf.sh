@@ -5,62 +5,88 @@ HF_VENV="/workspace/.venv_hf"
 PYTHON_BIN="python3.10"
 
 echo "========================================"
-echo "Bootstrapping Clean HF Stack"
+echo "Bootstrapping HuggingFace inference stack"
 echo "========================================"
 
-rm -rf "$HF_VENV"
-
-$PYTHON_BIN -m venv "$HF_VENV"
-
-PYTHON="$HF_VENV/bin/python"
-PIP="$HF_VENV/bin/pip"
-
 ########################################
-# Upgrade base tools
+# Create venv only if missing
 ########################################
 
-$PIP install --upgrade pip setuptools wheel
+if [ ! -d "$HF_VENV" ]; then
+    echo "Creating virtual environment..."
 
-########################################
-# Install Torch (includes correct Triton)
-########################################
+    $PYTHON_BIN -m venv "$HF_VENV"
 
-$PIP install \
-torch==2.4.0 \
-torchvision==0.19.0 \
-torchaudio==2.4.0 \
---index-url https://download.pytorch.org/whl/cu121
+    PYTHON="$HF_VENV/bin/python"
+    PIP="$HF_VENV/bin/pip"
 
-########################################
-# Fix numpy version
-########################################
+    echo "Upgrading pip..."
+    $PIP install --upgrade pip setuptools wheel
 
-$PIP install numpy==1.26.4
+    ########################################
+    # Install PyTorch CUDA 12.1
+    ########################################
 
-########################################
-# Install HF stack ONLY
-########################################
+    echo "Installing PyTorch..."
 
-$PIP install \
-transformers==4.45.2 \
-accelerate==0.33.0 \
-huggingface_hub==0.36.2 \
-tokenizers==0.20.3 \
-safetensors \
-sentencepiece \
-psutil
+    $PIP install \
+        torch==2.4.0 \
+        torchvision==0.19.0 \
+        torchaudio==2.4.0 \
+        --index-url https://download.pytorch.org/whl/cu121
+
+    ########################################
+    # Fix numpy compatibility
+    ########################################
+
+    $PIP install numpy==1.26.4
+
+    ########################################
+    # Install HuggingFace stack
+    ########################################
+
+    echo "Installing HuggingFace stack..."
+
+    $PIP install \
+        transformers==4.45.2 \
+        accelerate==0.33.0 \
+        huggingface_hub==0.36.2 \
+        tokenizers==0.20.3 \
+        safetensors \
+        sentencepiece \
+        protobuf \
+        psutil \
+        requests \
+        tqdm \
+        pyyaml \
+        regex
+
+    echo "Environment created."
+
+else
+
+    echo "Environment already exists. Skipping install."
+
+    PYTHON="$HF_VENV/bin/python"
+    PIP="$HF_VENV/bin/pip"
+
+fi
 
 ########################################
 # Verify
 ########################################
 
-$PYTHON - <<EOF
-import torch
-import transformers
+echo "Verifying..."
 
-print("===================================")
-print("READY")
+$PYTHON - <<EOF
+import torch, transformers
+
+print("OK")
 print("Torch:", torch.__version__)
 print("CUDA:", torch.version.cuda)
 print("Transformers:", transformers.__version__)
 EOF
+
+echo "========================================"
+echo "HF environment ready"
+echo "========================================"
