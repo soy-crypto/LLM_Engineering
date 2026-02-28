@@ -395,9 +395,7 @@ This project demonstrates:
 
 #
 *```allocate a contanier of big size
-docker run -it \
-  --gpus all \
-  --shm-size=32g \
+docker run -it --gpus all --shm-size=32g \
   --name trt_llm_big \
   -v /ephemeral/llm_workspace:/workspace \
   -v /ephemeral/hf_models:/workspace/hf_models \
