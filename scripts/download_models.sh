@@ -39,15 +39,7 @@ source "$HF_VENV/bin/activate"
 # Check login
 ########################################
 
-if ! huggingface-cli whoami &>/dev/null; then
 
-    echo ""
-    echo "ERROR: HuggingFace login required."
-    echo "Run: huggingface-cli login"
-    echo ""
-
-    exit 1
-fi
 
 ########################################
 # Download models
