@@ -3,7 +3,6 @@ set -euo pipefail
 
 echo "========================================"
 echo "Bootstrap Phi-3 Mini → TensorRT-LLM"
-echo "GPU: L40S"
 echo "========================================"
 
 MODEL_ID="microsoft/phi-3-mini-4k-instruct"
@@ -17,9 +16,6 @@ ENGINE_DIR="/workspace/trt_engine/phi_3_mini_bf16_b16_s4096"
 ########################################
 
 if [ ! -f "$MODEL_DIR/config.json" ]; then
-
-    echo "Downloading HF model..."
-
     mkdir -p "$MODEL_DIR"
 
     huggingface-cli download "$MODEL_ID" \
@@ -35,11 +31,9 @@ echo "HF model ready"
 
 if [ ! -f "$CKPT_DIR/config.json" ]; then
 
-    echo "Converting checkpoint..."
-
     mkdir -p "$CKPT_DIR"
 
-    python3 /app/tensorrt_llm/examples/models/phi3/convert_checkpoint.py \
+    python3 /app/tensorrt_llm/examples/models/core/phi/convert_checkpoint.py \
         --model-dir "$MODEL_DIR" \
         --output-model-dir "$CKPT_DIR" \
         --dtype bfloat16 \
@@ -53,8 +47,6 @@ echo "Checkpoint ready"
 ########################################
 
 if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
-
-    echo "Building engine..."
 
     mkdir -p "$ENGINE_DIR"
 
@@ -72,4 +64,3 @@ if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
 fi
 
 echo "Engine ready"
-echo "DONE"
