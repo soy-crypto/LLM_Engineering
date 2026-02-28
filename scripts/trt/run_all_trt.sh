@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ########################################
-# TensorRT-LLM Benchmark Runner
+# TensorRT-LLM Full Pipeline Runner
+# HF → TRT checkpoint → TRT engine → Benchmark
 ########################################
 
 WORKSPACE="/workspace"
@@ -13,23 +14,26 @@ RESULTS_DIR="$PROJECT/results"
 CONFIG_FILE="$PROJECT/scripts/config/models.conf"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
+HF_ROOT="$WORKSPACE/hf_models"
+CKPT_ROOT="$WORKSPACE/trt_ckpt"
 ENGINE_ROOT="$WORKSPACE/trt_engine"
 
 BATCH_SIZES="1,2,4,8,16"
 MAX_NEW_TOKENS=512
 
 mkdir -p "$RESULTS_DIR"
+mkdir -p "$CKPT_ROOT"
 mkdir -p "$ENGINE_ROOT"
 
 export TRANSFORMERS_TRUST_REMOTE_CODE=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 echo "================================="
-echo "Running TensorRT-LLM benchmarks"
+echo "TensorRT-LLM Full Pipeline"
 echo "================================="
 
 ########################################
-# Validate environment
+# Validation
 ########################################
 
 if [ ! -f "$PROMPTS" ]; then
@@ -42,33 +46,19 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-if ! command -v trtllm-build >/dev/null; then
-    echo "ERROR: Must run inside TensorRT-LLM container"
-    exit 1
-fi
-
-if ! python3 -c "import tensorrt_llm" &>/dev/null; then
-    echo "ERROR: tensorrt_llm not installed"
-    exit 1
-fi
-
 ########################################
-# Validate engine completeness
+# Check checkpoint exists
 ########################################
 
-engine_valid () {
+ckpt_valid () {
 
-    local ENGINE_DIR="$1"
+    local DIR="$1"
 
-    if [ ! -d "$ENGINE_DIR" ]; then
+    if [ ! -f "$DIR/config.json" ]; then
         return 1
     fi
 
-    if [ ! -f "$ENGINE_DIR/config.json" ]; then
-        return 1
-    fi
-
-    if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+    if ! ls "$DIR"/*.safetensors >/dev/null 2>&1; then
         return 1
     fi
 
@@ -76,10 +66,85 @@ engine_valid () {
 }
 
 ########################################
-# Run benchmark for one model
+# Check engine exists
 ########################################
 
-run_model () {
+engine_valid () {
+
+    local DIR="$1"
+
+    if [ ! -f "$DIR/config.json" ]; then
+        return 1
+    fi
+
+    if ! ls "$DIR"/*.engine >/dev/null 2>&1; then
+        return 1
+    fi
+
+    return 0
+}
+
+########################################
+# Convert HF → TRT checkpoint
+########################################
+
+convert_checkpoint () {
+
+    local NAME="$1"
+
+    local HF_DIR="$HF_ROOT/$NAME"
+    local CKPT_DIR="$CKPT_ROOT/$NAME"
+
+    if ckpt_valid "$CKPT_DIR"; then
+        echo "Checkpoint exists: $CKPT_DIR"
+        return
+    fi
+
+    echo "Converting checkpoint: $NAME"
+
+    python3 /usr/local/lib/python3.12/dist-packages/tensorrt_llm/examples/llama/convert_checkpoint.py \
+        --model_dir "$HF_DIR" \
+        --output_dir "$CKPT_DIR" \
+        --dtype bfloat16
+
+}
+
+########################################
+# Build TRT engine
+########################################
+
+build_engine () {
+
+    local NAME="$1"
+
+    local CKPT_DIR="$CKPT_ROOT/$NAME"
+    local ENGINE_DIR="$ENGINE_ROOT/$NAME"
+
+    if engine_valid "$ENGINE_DIR"; then
+        echo "Engine exists: $ENGINE_DIR"
+        return
+    fi
+
+    echo "Building engine: $NAME"
+
+    trtllm-build \
+        --checkpoint_dir "$CKPT_DIR" \
+        --output_dir "$ENGINE_DIR" \
+        --max_batch_size 8 \
+        --max_seq_len 4096 \
+        --gpt_attention_plugin bfloat16 \
+        --gemm_plugin bfloat16 \
+        --context_fmha enable \
+        --remove_input_padding enable \
+        --kv_cache_type paged
+
+}
+
+########################################
+# Benchmark engine
+########################################
+
+run_benchmark () {
 
     local NAME="$1"
     local MODEL_ID="$2"
@@ -87,34 +152,11 @@ run_model () {
     local ENGINE_DIR="$ENGINE_ROOT/$NAME"
     local OUT_CSV="$RESULTS_DIR/trt_${NAME}.csv"
 
-    echo ""
-    echo "================================="
-    echo "Model: $NAME"
-    echo "HF ID: $MODEL_ID"
-    echo "Engine: $ENGINE_DIR"
-    echo "================================="
-
-    ####################################
-    # Validate engine
-    ####################################
-
-    if ! engine_valid "$ENGINE_DIR"; then
-        echo "WARNING: Engine missing or incomplete: $ENGINE_DIR"
-        echo "Skipping benchmark."
-        return
-    fi
-
-    ####################################
-    # Create CSV header if needed
-    ####################################
+    echo "Benchmarking: $NAME"
 
     if [ ! -f "$OUT_CSV" ]; then
         echo "backend,model,batch_size,avg_ttft,avg_latency,tokps_new" > "$OUT_CSV"
     fi
-
-    ####################################
-    # Run benchmark
-    ####################################
 
     python3 "$PROJECT/benchmarks/trt/bm_trtllm.py" \
         --engine_dir "$ENGINE_DIR" \
@@ -123,10 +165,8 @@ run_model () {
         --batch_size "$BATCH_SIZES" \
         --max_new_tokens "$MAX_NEW_TOKENS" \
         --out_csv "$OUT_CSV" \
-        --backend TensorRT-LLM \
-        || echo "ERROR: Benchmark failed for $NAME"
+        --backend TensorRT-LLM
 
-    echo "Finished: $NAME"
 }
 
 ########################################
@@ -139,14 +179,21 @@ do
     [[ -z "$NAME" ]] && continue
     [[ "$NAME" =~ ^# ]] && continue
 
-    run_model "$NAME" "$MODEL_ID"
+    echo ""
+    echo "================================="
+    echo "Processing model: $NAME"
+    echo "================================="
+
+    convert_checkpoint "$NAME"
+    build_engine "$NAME"
+    run_benchmark "$NAME" "$MODEL_ID"
 
 done < "$CONFIG_FILE"
 
 echo ""
 echo "================================="
-echo "All TensorRT benchmarks complete"
-echo "Results directory:"
+echo "Pipeline complete"
+echo "Results:"
 echo "$RESULTS_DIR"
 echo "================================="
 ```
