@@ -1,67 +1,36 @@
-
-#!/bin/bash --noprofile --norc
+#!/bin/bash
 set -euo pipefail
 
-MODEL_NAME="mistral_7b"
+WORKSPACE="/workspace"
+PROJECT="$WORKSPACE/LLM_Engineering"
+RESULTS_DIR="$PROJECT/results"
 
-HF_DIR="/workspace/hf_models/$MODEL_NAME"
-CKPT_DIR="/workspace/trt_ckpt/$MODEL_NAME"
-ENGINE_DIR="/workspace/trt_engine/$MODEL_NAME"
+ENGINE_DIR="$WORKSPACE/trt_engine/mistral_7b_bf16_b16_s4096"
+PROMPTS="$PROJECT/prompts/prompts_mid.txt"
+
+BATCH_SIZES="1,2,4,8,16"
+MAX_NEW_TOKENS=512
+
+mkdir -p "$RESULTS_DIR"
+
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 echo "================================="
-echo "Building TensorRT-LLM for $MODEL_NAME"
+echo "Running TensorRT-LLM benchmark (Mistral-7B)"
 echo "================================="
 
-mkdir -p "$CKPT_DIR"
-mkdir -p "$ENGINE_DIR"
-
-########################################
-# Step 1: Convert HF → TRT checkpoint
-########################################
-
-if [ ! -f "$CKPT_DIR/config.json" ]; then
-
-    echo "Converting HF checkpoint → TRT checkpoint"
-
-    python3 -u \
-    /usr/local/lib/python3.12/dist-packages/tensorrt_llm/examples/mistral/convert_checkpoint.py \
-        --model_dir "$HF_DIR" \
-        --output_dir "$CKPT_DIR" \
-        --dtype bfloat16
-
-else
-
-    echo "Checkpoint already exists"
-
+if [ ! -f "$ENGINE_DIR/config.json" ] || ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+    echo "ERROR: Engine incomplete at $ENGINE_DIR"
+    exit 1
 fi
 
-########################################
-# Step 2: Build TensorRT engine
-########################################
+python3 "$PROJECT/benchmarks/trt/bm_trtllm.py" \
+  --engine_dir "$ENGINE_DIR" \
+  --model_id "mistralai/Mistral-7B-Instruct-v0.3" \
+  --prompts "$PROMPTS" \
+  --batch_size "$BATCH_SIZES" \
+  --max_new_tokens "$MAX_NEW_TOKENS" \
+  --out_csv "$RESULTS_DIR/trt_mistral_7b_results.csv" \
+  --backend "TensorRT-LLM"
 
-if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
-
-    echo "Building TRT engine"
-
-    trtllm-build \
-        --checkpoint_dir "$CKPT_DIR" \
-        --output_dir "$ENGINE_DIR" \
-        --max_batch_size 8 \
-        --max_seq_len 8192 \
-        --gpt_attention_plugin bfloat16 \
-        --gemm_plugin bfloat16 \
-        --context_fmha enable \
-        --remove_input_padding enable \
-        --kv_cache_type paged \
-        --use_fused_mlp enable
-
-else
-
-    echo "Engine already exists"
-
-fi
-
-echo "================================="
-echo "DONE: $MODEL_NAME"
-echo "================================="
-
+echo "Done."
