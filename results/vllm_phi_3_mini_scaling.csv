@@ -1,0 +1,9 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokens_per_sec,gpu_mem_mb
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,1,0.026374,6.196562,82.63,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,2,0.028372,6.516301,157.14,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,4,0.030911,6.678167,306.67,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,8,0.035179,7.189425,570.01,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,1,0.026358,6.190001,82.71,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,2,0.028300,6.524454,156.95,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,4,0.030913,6.673437,306.89,40483
+vLLM,/workspace/hf_models/phi_3_mini,bfloat16,cuda,8,0.034652,7.090094,577.76,40483

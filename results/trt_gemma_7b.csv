@@ -1,0 +1,11 @@
+backend,model,batch_size,avg_ttft,avg_latency,tokps_new
+TensorRT-LLM,google/gemma-7b-it,1,0.029594,12.560538,40.762601
+TensorRT-LLM,google/gemma-7b-it,2,0.031745,13.108498,78.117279
+TensorRT-LLM,google/gemma-7b-it,4,0.033808,12.701567,161.239959
+TensorRT-LLM,google/gemma-7b-it,8,0.041571,14.392017,284.602236
+TensorRT-LLM,google/gemma-7b-it,16,0.067539,15.375819,532.784877
+TensorRT-LLM,google/gemma-7b-it,1,0.029574,12.579626,40.701027
+TensorRT-LLM,google/gemma-7b-it,2,0.031708,13.115610,78.075148
+TensorRT-LLM,google/gemma-7b-it,4,0.033863,12.695021,161.323085
+TensorRT-LLM,google/gemma-7b-it,8,0.041351,14.403182,284.381987
+TensorRT-LLM,google/gemma-7b-it,16,0.066927,15.406425,531.730244

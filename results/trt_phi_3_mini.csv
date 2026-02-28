@@ -1,0 +1,11 @@
+backend,model,batch_size,avg_ttft,avg_latency,tokps_new
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,1,0.015002,5.904807,86.709090
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,2,0.015744,6.001200,170.632688
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,4,0.016272,6.159491,332.495224
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,8,0.020001,6.764134,605.547216
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,16,0.031246,7.498994,1092.413533
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,1,0.014991,5.917398,86.527602
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,2,0.015742,5.984278,171.115063
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,4,0.016756,6.274967,326.418800
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,8,0.019829,6.822235,600.498891
+TensorRT-LLM,microsoft/phi-3-mini-4k-instruct,16,0.031799,7.706008,1063.067912

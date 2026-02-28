@@ -1,0 +1,6 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokens_per_sec,gpu_mem_mb
+vLLM,/workspace/hf_models/mistral_7b,bfloat16,cuda,1,0.048473,10.727225,47.73,36796
+vLLM,/workspace/hf_models/mistral_7b,bfloat16,cuda,2,0.047937,11.083513,92.39,36796
+vLLM,/workspace/hf_models/mistral_7b,bfloat16,cuda,4,0.050800,11.164301,183.44,36796
+vLLM,/workspace/hf_models/mistral_7b,bfloat16,cuda,8,0.056919,11.379800,359.94,36796
+vLLM,/workspace/hf_models/mistral_7b,bfloat16,cuda,1,0.046053,10.712199,47.80,36796

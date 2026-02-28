@@ -1,0 +1,11 @@
+backend,model,batch_size,avg_ttft,avg_latency,tokps_new
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,1,0.026641,10.672707,47.972839
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,2,0.027844,10.722816,95.497326
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,4,0.029570,10.712048,191.186754
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,8,0.033885,11.076648,369.787163
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,16,0.053770,11.343746,722.160140
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,1,0.027018,10.867528,47.112870
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,2,0.028639,10.796923,94.848059
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,4,0.029871,10.769514,190.174236
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,8,0.033873,11.171982,366.649587
+TensorRT-LLM,Qwen/Qwen2.5-7B-Instruct,16,0.053433,11.539258,709.924398

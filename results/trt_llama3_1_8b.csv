@@ -1,0 +1,11 @@
+backend,model,batch_size,avg_ttft,avg_latency,tokps_new
+TensorRT-LLM,meta-llama/Llama-3.1-8B,1,0.027129,11.217291,45.643922
+TensorRT-LLM,meta-llama/Llama-3.1-8B,2,0.027404,11.230896,91.177102
+TensorRT-LLM,meta-llama/Llama-3.1-8B,4,0.029536,11.319329,180.929453
+TensorRT-LLM,meta-llama/Llama-3.1-8B,8,0.035161,11.868658,345.110762
+TensorRT-LLM,meta-llama/Llama-3.1-8B,16,0.057229,12.245720,668.968573
+TensorRT-LLM,meta-llama/Llama-3.1-8B,1,0.027871,11.391175,44.947271
+TensorRT-LLM,meta-llama/Llama-3.1-8B,2,0.027850,11.383603,89.954098
+TensorRT-LLM,meta-llama/Llama-3.1-8B,4,0.030038,11.441485,179.003268
+TensorRT-LLM,meta-llama/Llama-3.1-8B,8,0.035348,11.866415,345.176763
+TensorRT-LLM,meta-llama/Llama-3.1-8B,16,0.057145,12.281675,667.026679

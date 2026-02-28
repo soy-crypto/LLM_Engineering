@@ -1,0 +1,11 @@
+backend,model,batch_size,avg_ttft,avg_latency,tokps_new
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,1,0.025514,10.589014,48.352017
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,2,0.026328,10.616239,96.456052
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,4,0.028554,10.702424,191.358601
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,8,0.034710,11.251962,364.025557
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,16,0.057945,11.611049,705.534890
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,1,0.025270,10.616542,48.227731
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,2,0.026379,10.594083,96.657734
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,4,0.028602,10.686891,191.636649
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,8,0.034352,11.233316,364.629686
+TensorRT-LLM,mistralai/Mistral-7B-Instruct-v0.3,16,0.057155,11.595674,706.470552

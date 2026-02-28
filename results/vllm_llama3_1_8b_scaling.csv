@@ -1,0 +1,9 @@
+backend,model,dtype,device,batch_size,avg_ttft,avg_latency,tokens_per_sec,gpu_mem_mb
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,1,0.048756,11.317801,45.24,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,2,0.051538,11.848240,86.43,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,4,0.053730,11.808916,173.43,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,8,0.059640,12.130678,337.67,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,1,0.049219,11.404430,44.90,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,2,0.050876,11.769248,87.01,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,4,0.053134,11.761884,174.12,39656
+vLLM,/workspace/hf_models/llama3_1_8b,bfloat16,cuda,8,0.059153,12.004454,341.21,39656
