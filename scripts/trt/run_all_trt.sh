@@ -1,5 +1,10 @@
+```bash
 #!/bin/bash
 set -euo pipefail
+
+########################################
+# TensorRT-LLM Benchmark Runner
+########################################
 
 WORKSPACE="/workspace"
 PROJECT="$WORKSPACE/LLM_Engineering"
@@ -8,12 +13,13 @@ RESULTS_DIR="$PROJECT/results"
 CONFIG_FILE="$PROJECT/scripts/config/models.conf"
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
+ENGINE_ROOT="$WORKSPACE/trt_engine"
+
 BATCH_SIZES="1,2,4,8,16"
 MAX_NEW_TOKENS=512
 
-ENGINE_ROOT="$WORKSPACE/trt_engine"
-
 mkdir -p "$RESULTS_DIR"
+mkdir -p "$ENGINE_ROOT"
 
 export TRANSFORMERS_TRUST_REMOTE_CODE=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -47,7 +53,30 @@ if ! python3 -c "import tensorrt_llm" &>/dev/null; then
 fi
 
 ########################################
-# Benchmark function
+# Validate engine completeness
+########################################
+
+engine_valid () {
+
+    local ENGINE_DIR="$1"
+
+    if [ ! -d "$ENGINE_DIR" ]; then
+        return 1
+    fi
+
+    if [ ! -f "$ENGINE_DIR/config.json" ]; then
+        return 1
+    fi
+
+    if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+        return 1
+    fi
+
+    return 0
+}
+
+########################################
+# Run benchmark for one model
 ########################################
 
 run_model () {
@@ -60,29 +89,33 @@ run_model () {
 
     echo ""
     echo "================================="
-    echo "Running TensorRT benchmark: $NAME"
-    echo "Model ID: $MODEL_ID"
+    echo "Model: $NAME"
+    echo "HF ID: $MODEL_ID"
     echo "Engine: $ENGINE_DIR"
     echo "================================="
 
     ####################################
-    # FIX 1: validate engine properly
+    # Validate engine
     ####################################
-    if [ ! -f "$ENGINE_DIR/config.json" ]; then
-        echo "WARNING: Engine not found or incomplete: $ENGINE_DIR"
+
+    if ! engine_valid "$ENGINE_DIR"; then
+        echo "WARNING: Engine missing or incomplete: $ENGINE_DIR"
+        echo "Skipping benchmark."
         return
     fi
 
     ####################################
-    # FIX 2: ensure output file header once
+    # Create CSV header if needed
     ####################################
+
     if [ ! -f "$OUT_CSV" ]; then
         echo "backend,model,batch_size,avg_ttft,avg_latency,tokps_new" > "$OUT_CSV"
     fi
 
     ####################################
-    # FIX 3: use absolute python path
+    # Run benchmark
     ####################################
+
     python3 "$PROJECT/benchmarks/trt/bm_trtllm.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \
@@ -90,13 +123,14 @@ run_model () {
         --batch_size "$BATCH_SIZES" \
         --max_new_tokens "$MAX_NEW_TOKENS" \
         --out_csv "$OUT_CSV" \
-        --backend TensorRT-LLM
+        --backend TensorRT-LLM \
+        || echo "ERROR: Benchmark failed for $NAME"
 
     echo "Finished: $NAME"
 }
 
 ########################################
-# Loop config safely
+# Main loop
 ########################################
 
 while IFS="|" read -r NAME MODEL_ID || [[ -n "$NAME" ]]
@@ -111,7 +145,8 @@ done < "$CONFIG_FILE"
 
 echo ""
 echo "================================="
-echo "All TensorRT benchmarks done"
-echo "Results:"
+echo "All TensorRT benchmarks complete"
+echo "Results directory:"
 echo "$RESULTS_DIR"
 echo "================================="
+```
