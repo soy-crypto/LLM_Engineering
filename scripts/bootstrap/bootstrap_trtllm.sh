@@ -2,6 +2,11 @@
 #!/bin/bash
 set -euo pipefail
 
+########################################
+# TensorRT-LLM Bootstrap Script
+# Safe version for TensorRT-LLM 1.3.0rc3
+########################################
+
 echo "========================================"
 echo "Bootstrapping TensorRT-LLM backend"
 echo "========================================"
@@ -42,7 +47,7 @@ if ! command -v trtllm-build >/dev/null; then
     echo ""
     echo "ERROR: trtllm-build not found."
     echo ""
-    echo "You must run inside NVIDIA TensorRT-LLM container:"
+    echo "Run inside NVIDIA TensorRT-LLM container:"
     echo ""
     echo "docker run --gpus all -it --rm \\"
     echo "  -v /workspace:/workspace \\"
@@ -67,17 +72,19 @@ print("TensorRT-LLM version:", tensorrt_llm.__version__)
 EOF
 
 ########################################
-# Install compatible optional utilities
+# Fix and install compatible dependencies
 ########################################
 
 echo ""
-echo "Installing optional utilities (TensorRT-LLM compatible versions)..."
+echo "Installing compatible Python dependencies..."
+
+$PYTHON_BIN -m pip uninstall -y transformers huggingface_hub numpy || true
 
 $PYTHON_BIN -m pip install \
     transformers==4.57.1 \
     huggingface_hub==0.36.2 \
-    accelerate==1.12.0 \
     numpy==1.26.4 \
+    accelerate==1.12.0 \
     sentencepiece \
     protobuf \
     safetensors \
@@ -93,7 +100,10 @@ echo ""
 echo "Verifying dependency versions..."
 
 $PYTHON_BIN - <<EOF
-import numpy, transformers, tensorrt_llm
+import numpy
+import transformers
+import tensorrt_llm
+
 print("numpy:", numpy.__version__)
 print("transformers:", transformers.__version__)
 print("tensorrt_llm:", tensorrt_llm.__version__)
@@ -112,7 +122,7 @@ echo "Engine directory ready:"
 echo "$ENGINE_ROOT"
 
 ########################################
-# GPU validation
+# Validate GPU
 ########################################
 
 echo ""
@@ -120,7 +130,7 @@ echo "GPU info:"
 nvidia-smi --query-gpu=name,memory.total --format=csv
 
 ########################################
-# Complete
+# Finished
 ########################################
 
 echo ""
@@ -131,17 +141,17 @@ echo "========================================"
 echo ""
 echo "Next steps:"
 echo ""
-echo "1. Convert HF model → TRT engine:"
+echo "Build engine:"
 echo ""
-echo "   trtllm-build \\"
-echo "     --checkpoint_dir /workspace/hf_models/llama3_1_8b \\"
-echo "     --output_dir /workspace/trt_engine/llama3_1_8b \\"
-echo "     --dtype bfloat16 \\"
-echo "     --max_batch_size 8 \\"
-echo "     --max_seq_len 4096"
+echo "trtllm-build \\"
+echo "  --checkpoint_dir /workspace/hf_models/llama3_1_8b \\"
+echo "  --output_dir /workspace/trt_engine/llama3_1_8b \\"
+echo "  --dtype bfloat16 \\"
+echo "  --max_batch_size 8 \\"
+echo "  --max_seq_len 4096"
 echo ""
-echo "2. Run benchmark:"
+echo "Then run benchmark:"
 echo ""
-echo "   ./run_all_trt.sh"
+echo "./run_all_trt.sh"
 echo ""
 ```
