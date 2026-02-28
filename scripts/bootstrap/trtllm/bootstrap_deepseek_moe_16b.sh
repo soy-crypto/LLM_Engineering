@@ -12,12 +12,12 @@ CKPT_DIR="/workspace/trt_ckpt/deepseek_moe_16b_bf16_1gpu"
 ENGINE_DIR="/workspace/trt_engine/deepseek_moe_16b_bf16_b16_s4096"
 
 ########################################
-# Download model
+# Download HF model
 ########################################
 
 if [ ! -f "$MODEL_DIR/config.json" ]; then
 
-    echo "Downloading HF model..."
+    echo "Downloading model..."
 
     mkdir -p "$MODEL_DIR"
 
@@ -29,7 +29,7 @@ fi
 echo "HF model ready"
 
 ########################################
-# Convert checkpoint
+# Convert checkpoint (CORRECT PATH)
 ########################################
 
 if [ ! -f "$CKPT_DIR/config.json" ]; then
@@ -38,7 +38,7 @@ if [ ! -f "$CKPT_DIR/config.json" ]; then
 
     mkdir -p "$CKPT_DIR"
 
-    python3 /app/tensorrt_llm/examples/models/deepseek_v2/convert_checkpoint.py \
+    python3 /app/tensorrt_llm/examples/models/core/deepseek/convert_checkpoint.py \
         --model_dir "$MODEL_DIR" \
         --output_dir "$CKPT_DIR" \
         --dtype bfloat16
@@ -69,5 +69,4 @@ if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
         --remove_input_padding enable
 fi
 
-echo "Engine ready"
 echo "DONE"
