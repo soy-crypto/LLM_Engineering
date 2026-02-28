@@ -40,10 +40,10 @@ if [ ! -f "$CKPT_DIR/config.json" ]; then
     mkdir -p "$CKPT_DIR"
 
     python3 /app/tensorrt_llm/examples/models/core/gemma/convert_checkpoint.py \
-        --model_dir "$MODEL_DIR" \
-        --output_dir "$CKPT_DIR" \
-        --dtype bfloat16 \
-        --ckpt_type hf
+    --model-dir "$MODEL_DIR" \
+    --output-model-dir "$CKPT_DIR" \
+    --dtype bfloat16 \
+    --ckpt-type hf
 fi
 
 echo "Checkpoint ready"
