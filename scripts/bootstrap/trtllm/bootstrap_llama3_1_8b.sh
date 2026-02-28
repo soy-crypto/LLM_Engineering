@@ -68,18 +68,16 @@ fi
 
 source "$HF_VENV/bin/activate"
 
-########################################
-# Verify HF login
-########################################
+echo "Using existing HuggingFace authentication (no check required)"
 
-if ! huggingface-cli whoami &>/dev/null; then
-
-    echo ""
-    echo "ERROR: HuggingFace login required"
-    echo "Run:"
-    echo "huggingface-cli login"
-    exit 1
+if [ ! -f "$MODEL_DIR/config.json" ]; then
+    echo "Downloading model..."
+    huggingface-cli download "$MODEL_ID" \
+        --local-dir "$MODEL_DIR" \
+        --local-dir-use-symlinks False
 fi
+
+deactivate
 
 ########################################
 # Download model
