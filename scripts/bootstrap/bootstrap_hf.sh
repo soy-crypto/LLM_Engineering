@@ -2,17 +2,27 @@
 set -euo pipefail
 
 HF_VENV="/workspace/.venv_hf"
-PYTHON_BIN="python3.10"
+PYTHON_BIN="python3"
 
 echo "========================================"
 echo "Bootstrapping HuggingFace inference stack"
 echo "========================================"
 
 ########################################
+# Remove broken venv automatically
+########################################
+
+if [ -d "$HF_VENV" ] && [ ! -f "$HF_VENV/bin/python" ]; then
+    echo "Broken venv detected. Removing..."
+    rm -rf "$HF_VENV"
+fi
+
+########################################
 # Create venv only if missing
 ########################################
 
 if [ ! -d "$HF_VENV" ]; then
+
     echo "Creating virtual environment..."
 
     $PYTHON_BIN -m venv "$HF_VENV"
@@ -65,7 +75,7 @@ if [ ! -d "$HF_VENV" ]; then
 
 else
 
-    echo "Environment already exists. Skipping install."
+    echo "Environment already exists."
 
     PYTHON="$HF_VENV/bin/python"
     PIP="$HF_VENV/bin/pip"
