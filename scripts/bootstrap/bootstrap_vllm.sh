@@ -1,114 +1,75 @@
 #!/bin/bash
 set -euo pipefail
 
-############################################
-# Configuration
-############################################
-
 VLLM_VENV="/workspace/.venv_vllm"
-PYTHON_BIN="python3.10"
+PYTHON_BIN="python3"
 
 echo "========================================"
 echo "Bootstrapping vLLM inference environment"
 echo "========================================"
 
-############################################
-# Verify Python
-############################################
+########################################
+# Remove broken venv automatically
+########################################
 
-if ! command -v $PYTHON_BIN &> /dev/null; then
-    echo "ERROR: python3.10 not found"
-    echo "Install via:"
-    echo "apt update && apt install -y python3.10 python3.10-venv"
-    exit 1
-fi
-
-############################################
-# Remove old environment
-############################################
-
-if [ -d "$VLLM_VENV" ]; then
-    echo "Removing old vLLM venv..."
+if [ -d "$VLLM_VENV" ] && [ ! -f "$VLLM_VENV/bin/python" ]; then
+    echo "Broken venv detected. Removing..."
     rm -rf "$VLLM_VENV"
 fi
 
-############################################
-# Create fresh environment
-############################################
+########################################
+# Create venv if missing
+########################################
 
-echo "Creating new vLLM environment..."
+if [ ! -d "$VLLM_VENV" ]; then
 
-$PYTHON_BIN -m venv "$VLLM_VENV"
+    echo "Creating vLLM virtual environment..."
 
-PYTHON="$VLLM_VENV/bin/python"
-PIP="$VLLM_VENV/bin/pip"
+    $PYTHON_BIN -m venv "$VLLM_VENV"
 
-############################################
-# Upgrade build tools
-############################################
+    PYTHON="$VLLM_VENV/bin/python"
+    PIP="$VLLM_VENV/bin/pip"
 
-echo "Upgrading pip and build tools..."
+    $PIP install --upgrade pip setuptools wheel
 
-$PIP install --upgrade pip setuptools wheel packaging
+    ########################################
+    # Install PyTorch CUDA 12.1
+    ########################################
 
-############################################
-# Install PyTorch CUDA 12.1 (required)
-############################################
+    $PIP install \
+        torch==2.4.0 \
+        torchvision==0.19.0 \
+        torchaudio==2.4.0 \
+        --index-url https://download.pytorch.org/whl/cu121
 
-echo "Installing PyTorch CUDA 12.1..."
+    ########################################
+    # Install vLLM
+    ########################################
 
-$PIP install \
-    torch==2.4.0 \
-    torchvision==0.19.0 \
-    torchaudio==2.4.0 \
-    --index-url https://download.pytorch.org/whl/cu121
+    $PIP install vllm==0.5.4
 
-############################################
-# Install vLLM
-############################################
+    echo "vLLM environment created."
 
-echo "Installing vLLM..."
+else
 
-$PIP install vllm
+    echo "Environment already exists."
 
-############################################
-# Install HF utilities
-############################################
+    PYTHON="$VLLM_VENV/bin/python"
+fi
 
-echo "Installing HuggingFace utilities..."
+########################################
+# Verify
+########################################
 
-$PIP install \
-    transformers \
-    huggingface_hub \
-    accelerate \
-    sentencepiece \
-    safetensors
-
-############################################
-# Verify installation
-############################################
-
-echo "Verifying vLLM installation..."
+echo "Verifying vLLM..."
 
 $PYTHON - <<EOF
-import torch
-import vllm
-
-print("===================================")
-print("vLLM environment ready")
-print("Python:", __import__("sys").version)
-print("Torch:", torch.__version__)
-print("CUDA:", torch.version.cuda)
+import vllm, torch
+print("OK")
 print("vLLM:", vllm.__version__)
-print("GPU available:", torch.cuda.is_available())
-print("GPU:", torch.cuda.get_device_name(0))
-print("===================================")
+print("Torch:", torch.__version__)
 EOF
 
-echo ""
 echo "========================================"
-echo "vLLM bootstrap complete"
-echo "Venv location: $VLLM_VENV"
-echo "Activate with:"
-echo "source $VLLM_VENV/bin/activate"
+echo "vLLM environment ready"
 echo "========================================"
