@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash --noprofile --norc
 set -euo pipefail
 
@@ -46,4 +45,3 @@ if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
     trtllm-build \
         --checkpoint_dir "$CKPT_DIR" \
         --output
-```

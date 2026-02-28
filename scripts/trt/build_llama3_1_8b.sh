@@ -1,4 +1,4 @@
-```bash
+
 #!/bin/bash --noprofile --norc
 set -euo pipefail
 
@@ -63,4 +63,3 @@ fi
 echo "================================="
 echo "DONE: $MODEL_NAME"
 echo "================================="
-```

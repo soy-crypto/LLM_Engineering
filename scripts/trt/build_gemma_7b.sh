@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash --noprofile --norc
 set -euo pipefail
 
@@ -38,4 +37,3 @@ fi
 ########################################
 # Step 2: Build TRT engine
 ###########################
-```
