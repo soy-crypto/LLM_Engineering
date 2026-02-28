@@ -1,3 +1,4 @@
+```bash
 #!/bin/bash
 set -euo pipefail
 
@@ -6,7 +7,7 @@ echo "Bootstrapping TensorRT-LLM backend"
 echo "========================================"
 
 ########################################
-# Validate CUDA
+# Validate NVIDIA driver
 ########################################
 
 if ! command -v nvidia-smi >/dev/null; then
@@ -14,6 +15,8 @@ if ! command -v nvidia-smi >/dev/null; then
     exit 1
 fi
 
+echo ""
+echo "NVIDIA driver detected:"
 nvidia-smi
 
 ########################################
@@ -27,8 +30,12 @@ if ! command -v $PYTHON_BIN >/dev/null; then
     exit 1
 fi
 
+echo ""
+echo "Python detected:"
+$PYTHON_BIN --version
+
 ########################################
-# Validate TensorRT-LLM container
+# Validate TensorRT-LLM CLI
 ########################################
 
 if ! command -v trtllm-build >/dev/null; then
@@ -44,36 +51,53 @@ if ! command -v trtllm-build >/dev/null; then
     exit 1
 fi
 
-echo "TensorRT-LLM detected:"
-trtllm-build --version || true
+echo ""
+echo "TensorRT-LLM CLI detected."
 
 ########################################
-# Validate Python packages
+# Validate TensorRT-LLM Python module
 ########################################
 
-echo "Checking tensorrt_llm module..."
+echo ""
+echo "Checking TensorRT-LLM Python module..."
 
 $PYTHON_BIN - <<EOF
 import tensorrt_llm
-print("tensorrt_llm OK")
+print("TensorRT-LLM version:", tensorrt_llm.__version__)
 EOF
 
 ########################################
-# Install optional tools (safe)
+# Install compatible optional utilities
 ########################################
 
-echo "Installing optional utilities..."
+echo ""
+echo "Installing optional utilities (TensorRT-LLM compatible versions)..."
 
-$PYTHON_BIN -m pip install --upgrade \
-    transformers \
-    huggingface_hub \
-    accelerate \
+$PYTHON_BIN -m pip install \
+    transformers==4.57.1 \
+    huggingface_hub==0.36.2 \
+    accelerate==1.12.0 \
+    numpy==1.26.4 \
     sentencepiece \
     protobuf \
     safetensors \
-    numpy \
     psutil \
-    tqdm
+    tqdm \
+    --no-cache-dir
+
+########################################
+# Verify compatibility
+########################################
+
+echo ""
+echo "Verifying dependency versions..."
+
+$PYTHON_BIN - <<EOF
+import numpy, transformers, tensorrt_llm
+print("numpy:", numpy.__version__)
+print("transformers:", transformers.__version__)
+print("tensorrt_llm:", tensorrt_llm.__version__)
+EOF
 
 ########################################
 # Create engine directory
@@ -83,6 +107,7 @@ ENGINE_ROOT="/workspace/trt_engine"
 
 mkdir -p "$ENGINE_ROOT"
 
+echo ""
 echo "Engine directory ready:"
 echo "$ENGINE_ROOT"
 
@@ -111,9 +136,12 @@ echo ""
 echo "   trtllm-build \\"
 echo "     --checkpoint_dir /workspace/hf_models/llama3_1_8b \\"
 echo "     --output_dir /workspace/trt_engine/llama3_1_8b \\"
-echo "     --dtype bfloat16"
+echo "     --dtype bfloat16 \\"
+echo "     --max_batch_size 8 \\"
+echo "     --max_seq_len 4096"
 echo ""
 echo "2. Run benchmark:"
 echo ""
 echo "   ./run_all_trt.sh"
 echo ""
+```
