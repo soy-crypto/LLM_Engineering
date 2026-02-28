@@ -1,41 +1,58 @@
 #!/bin/bash
 set -euo pipefail
 
+echo "========================================"
 echo "Bootstrap DeepSeek MoE 16B → TensorRT-LLM"
+echo "========================================"
 
 MODEL_ID="deepseek-ai/deepseek-moe-16b-base"
-
 MODEL_DIR="/workspace/hf_models/deepseek_moe_16b"
+
 CKPT_DIR="/workspace/trt_ckpt/deepseek_moe_16b_bf16_1gpu"
 ENGINE_DIR="/workspace/trt_engine/deepseek_moe_16b_bf16_b16_s4096"
 
-HF_VENV="/workspace/.venv_hf"
-CONVERT_SCRIPT="/app/tensorrt_llm/examples/models/core/deepseek/convert_checkpoint.py"
-
-command -v trtllm-build >/dev/null || exit 1
-
-source "$HF_VENV/bin/activate"
+########################################
+# Download model
+########################################
 
 if [ ! -f "$MODEL_DIR/config.json" ]; then
+
+    echo "Downloading HF model..."
+
     mkdir -p "$MODEL_DIR"
+
     huggingface-cli download "$MODEL_ID" \
         --local-dir "$MODEL_DIR" \
         --local-dir-use-symlinks False
 fi
 
-deactivate
+echo "HF model ready"
+
+########################################
+# Convert checkpoint
+########################################
 
 if [ ! -f "$CKPT_DIR/config.json" ]; then
 
+    echo "Converting checkpoint..."
+
     mkdir -p "$CKPT_DIR"
 
-    python3 -u "$CONVERT_SCRIPT" \
+    python3 /app/tensorrt_llm/examples/models/deepseek_v2/convert_checkpoint.py \
         --model_dir "$MODEL_DIR" \
         --output_dir "$CKPT_DIR" \
         --dtype bfloat16
 fi
 
-if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+echo "Checkpoint ready"
+
+########################################
+# Build engine
+########################################
+
+if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
+
+    echo "Building engine..."
 
     mkdir -p "$ENGINE_DIR"
 
@@ -48,7 +65,9 @@ if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
         --gemm_plugin bfloat16 \
         --gpt_attention_plugin bfloat16 \
         --context_fmha enable \
+        --use_paged_context_fmha enable \
         --remove_input_padding enable
 fi
 
-echo "Done: DeepSeek MoE 16B"
+echo "Engine ready"
+echo "DONE"
