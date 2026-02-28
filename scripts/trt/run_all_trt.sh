@@ -52,12 +52,16 @@ run_benchmark () {
     echo "Engine: $ENGINE_DIR"
     echo "========================================"
 
-    if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+    if [ ! -d "$ENGINE_DIR" ] || ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
         echo "WARNING: Engine not found, skipping"
         return
     fi
 
-    python3 -u "$PROJECT/benchmarks/trt/bm_trtllm.py" \
+    if [ ! -f "$OUT_CSV" ]; then
+        echo "backend,model,batch_size,avg_ttft,avg_latency,tokps_new" > "$OUT_CSV"
+    fi
+
+    /usr/bin/python3 -u "$PROJECT/benchmarks/trt/bm_trtllm.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \
         --prompts "$PROMPTS" \
