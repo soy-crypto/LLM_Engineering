@@ -4,22 +4,51 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+############################################################
+# Paths
+############################################################
+
 PROJECT_ROOT = "/workspace/LLM_Engineering"
+
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 OUT_DIR = os.path.join(RESULTS_DIR, "aggregate")
 
-os.makedirs(OUT_DIR, exist_ok=True)
-
 OUT_CSV = os.path.join(OUT_DIR, "aggregate_results.csv")
+
+os.makedirs(OUT_DIR, exist_ok=True)
 
 
 ############################################################
-# Load CSV files
+# Column detection helper
+############################################################
+
+def detect_column(df, candidates):
+
+    for c in candidates:
+
+        if c in df.columns:
+            return c
+
+    raise RuntimeError(
+        f"None of expected columns found.\n"
+        f"Expected one of: {candidates}\n"
+        f"Actual columns: {list(df.columns)}"
+    )
+
+
+############################################################
+# Load results
 ############################################################
 
 def load_results():
 
+    print("Loading benchmark results...\n")
+
     files = glob.glob(os.path.join(RESULTS_DIR, "*.csv"))
+
+    if not files:
+        print("No CSV files found.")
+        return None
 
     dfs = []
 
@@ -32,41 +61,76 @@ def load_results():
         if name.startswith("aggregate"):
             continue
 
-        print("  ", name)
+        print(f"  {name}")
 
         df = pd.read_csv(file)
 
+        print(f"     columns: {list(df.columns)}")
+
         ####################################################
-        # Detect backend and normalize column names
+        # Backend detection
         ####################################################
 
         if name.startswith("trt_"):
 
-            df["backend"] = "TensorRT-LLM"
-            df["throughput"] = df["tokps_new"]
-            df["latency"] = df["avg_latency"]
+            backend = "TensorRT-LLM"
+
+            throughput_col = detect_column(
+                df,
+                ["tokps_new", "tokens_per_sec"]
+            )
+
+            latency_col = detect_column(
+                df,
+                ["avg_latency", "total_latency_ms"]
+            )
 
         elif name.startswith("vllm_"):
 
-            df["backend"] = "vLLM"
-            df["throughput"] = df["tokens_per_sec"]
-            df["latency"] = df["total_latency_ms"]
+            backend = "vLLM"
+
+            throughput_col = detect_column(
+                df,
+                ["tokens_per_sec", "tokps_new"]
+            )
+
+            latency_col = detect_column(
+                df,
+                ["total_latency_ms", "avg_latency"]
+            )
 
         elif name.startswith("results_hf"):
 
-            df["backend"] = "HF"
-            df["throughput"] = df["tokens_per_sec"]
-            df["latency"] = df["total_latency_ms"]
+            backend = "HF"
+
+            throughput_col = detect_column(
+                df,
+                ["tokens_per_sec", "tokps_new"]
+            )
+
+            latency_col = detect_column(
+                df,
+                ["total_latency_ms", "avg_latency"]
+            )
 
         else:
+            print("     Skipping unknown file.")
             continue
+
+        ####################################################
+        # Normalize columns
+        ####################################################
+
+        df["backend"] = backend
+        df["throughput"] = df[throughput_col]
+        df["latency"] = df[latency_col]
 
         df["model_file"] = name.replace(".csv", "")
 
         dfs.append(df)
 
     if not dfs:
-        print("ERROR: No benchmark results found.")
+        print("No benchmark results found.")
         return None
 
     return pd.concat(dfs, ignore_index=True)
@@ -78,13 +142,15 @@ def load_results():
 
 def plot_throughput(df):
 
+    print("\nGenerating throughput plots...")
+
     models = df["model_file"].unique()
 
     for model in models:
 
         sub = df[df["model_file"] == model]
 
-        plt.figure()
+        plt.figure(figsize=(8,6))
 
         for backend in sub["backend"].unique():
 
@@ -94,21 +160,22 @@ def plot_throughput(df):
                 s["batch_size"],
                 s["throughput"],
                 marker="o",
+                linewidth=2,
                 label=backend
             )
 
         plt.title(f"Throughput vs Batch Size\n{model}")
         plt.xlabel("Batch Size")
         plt.ylabel("Tokens/sec")
+        plt.grid(True)
         plt.legend()
-        plt.grid()
 
         out = os.path.join(
             OUT_DIR,
             f"{model}_throughput.png"
         )
 
-        plt.savefig(out)
+        plt.savefig(out, dpi=150)
         plt.close()
 
         print("Saved:", out)
@@ -120,13 +187,15 @@ def plot_throughput(df):
 
 def plot_latency(df):
 
+    print("\nGenerating latency plots...")
+
     models = df["model_file"].unique()
 
     for model in models:
 
         sub = df[df["model_file"] == model]
 
-        plt.figure()
+        plt.figure(figsize=(8,6))
 
         for backend in sub["backend"].unique():
 
@@ -136,21 +205,22 @@ def plot_latency(df):
                 s["batch_size"],
                 s["latency"],
                 marker="o",
+                linewidth=2,
                 label=backend
             )
 
         plt.title(f"Latency vs Batch Size\n{model}")
         plt.xlabel("Batch Size")
         plt.ylabel("Latency (ms)")
+        plt.grid(True)
         plt.legend()
-        plt.grid()
 
         out = os.path.join(
             OUT_DIR,
             f"{model}_latency.png"
         )
 
-        plt.savefig(out)
+        plt.savefig(out, dpi=150)
         plt.close()
 
         print("Saved:", out)
@@ -162,13 +232,17 @@ def plot_latency(df):
 
 def print_summary(df):
 
-    print("\nAverage throughput (tokens/sec):")
+    print("\n=================================")
+    print("Average Throughput (tokens/sec)")
+    print("=================================\n")
 
-    print(
+    summary = (
         df.groupby("backend")["throughput"]
         .mean()
         .sort_values(ascending=False)
     )
+
+    print(summary)
 
 
 ############################################################
@@ -176,8 +250,6 @@ def print_summary(df):
 ############################################################
 
 def main():
-
-    print("Loading benchmark results...\n")
 
     df = load_results()
 
@@ -189,17 +261,17 @@ def main():
 
     df.to_csv(OUT_CSV, index=False)
 
-    print("\nGenerating plots...\n")
-
     plot_throughput(df)
     plot_latency(df)
 
     print_summary(df)
 
     print("\nDone.")
-    print("Output folder:")
+    print("\nOutput directory:")
     print(OUT_DIR)
 
+
+############################################################
 
 if __name__ == "__main__":
     main()
