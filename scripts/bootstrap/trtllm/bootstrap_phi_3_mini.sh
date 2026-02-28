@@ -12,10 +12,11 @@ CKPT_DIR="/workspace/trt_ckpt/phi_3_mini_bf16_1gpu"
 ENGINE_DIR="/workspace/trt_engine/phi_3_mini_bf16_b16_s4096"
 
 ########################################
-# Download HF model
+# Download model
 ########################################
 
 if [ ! -f "$MODEL_DIR/config.json" ]; then
+
     mkdir -p "$MODEL_DIR"
 
     huggingface-cli download "$MODEL_ID" \
@@ -31,13 +32,14 @@ echo "HF model ready"
 
 if [ ! -f "$CKPT_DIR/config.json" ]; then
 
+    echo "Converting checkpoint..."
+
     mkdir -p "$CKPT_DIR"
 
     python3 /app/tensorrt_llm/examples/models/core/phi/convert_checkpoint.py \
-        --model-dir "$MODEL_DIR" \
-        --output-model-dir "$CKPT_DIR" \
-        --dtype bfloat16 \
-        --ckpt-type hf
+        --model_dir "$MODEL_DIR" \
+        --output_dir "$CKPT_DIR" \
+        --dtype bfloat16
 fi
 
 echo "Checkpoint ready"
@@ -47,6 +49,8 @@ echo "Checkpoint ready"
 ########################################
 
 if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
+
+    echo "Building engine..."
 
     mkdir -p "$ENGINE_DIR"
 
@@ -64,3 +68,4 @@ if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
 fi
 
 echo "Engine ready"
+echo "DONE"
