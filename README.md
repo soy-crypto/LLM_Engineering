@@ -395,6 +395,7 @@ This project demonstrates:
 
 #
 *```allocate a contanier of big size
+
 docker run -it --gpus all --shm-size=32g \
   --name trt_llm_big \
   -v /ephemeral/llm_workspace:/workspace \
@@ -402,6 +403,8 @@ docker run -it --gpus all --shm-size=32g \
   -v /ephemeral/trt_engine:/workspace/trt_engine \
   nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3 \
   bash
+
+
 ```
 
 
