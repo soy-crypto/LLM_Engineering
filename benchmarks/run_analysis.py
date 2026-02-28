@@ -4,19 +4,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-############################################################
-# Paths based on your project structure
-############################################################
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-RESULTS_ROOT = os.path.join(PROJECT_ROOT, "benchmarks", "results")
+RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
-HF_DIR   = os.path.join(RESULTS_ROOT, "hf")
-VLLM_DIR = os.path.join(RESULTS_ROOT, "vllm")
-TRT_DIR  = os.path.join(RESULTS_ROOT, "trt")
-
-OUT_DIR  = os.path.join(PROJECT_ROOT, "results", "aggregate")
+OUT_DIR = os.path.join(RESULTS_DIR, "aggregate")
 
 OUT_CSV = os.path.join(OUT_DIR, "aggregate_results.csv")
 
@@ -24,74 +16,73 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 
 ############################################################
-# Load CSVs
+# Load CSV files
 ############################################################
 
-def load_backend(path, backend):
+def load_all():
 
-    files = glob.glob(os.path.join(path, "*.csv"))
+    files = glob.glob(os.path.join(RESULTS_DIR, "*.csv"))
 
     dfs = []
 
     for f in files:
 
+        name = os.path.basename(f)
+
+        if name.startswith("aggregate"):
+            continue
+
         df = pd.read_csv(f)
 
-        model = os.path.basename(f).replace(".csv", "")
+        ####################################################
+        # Detect backend
+        ####################################################
 
-        df["backend"] = backend
-        df["model"] = model
+        if name.startswith("trt_"):
+            backend = "TensorRT-LLM"
 
-        # Normalize throughput column
-        if "tokens_per_sec" in df.columns:
-            df["throughput"] = df["tokens_per_sec"]
+        elif name.startswith("vllm_"):
+            backend = "vLLM"
 
-        elif "tokps_new" in df.columns:
+        elif name.startswith("results_hf"):
+            backend = "HF"
+
+        else:
+            continue
+
+        ####################################################
+        # Normalize columns
+        ####################################################
+
+        if "tokps_new" in df.columns:
             df["throughput"] = df["tokps_new"]
 
+        elif "tokens_per_sec" in df.columns:
+            df["throughput"] = df["tokens_per_sec"]
+
         else:
-            print("Skipping (no throughput column):", f)
             continue
 
-        # Normalize latency column
-        if "total_latency_ms" in df.columns:
-            df["latency"] = df["total_latency_ms"]
-
-        elif "avg_latency" in df.columns:
+        if "avg_latency" in df.columns:
             df["latency"] = df["avg_latency"]
 
+        elif "total_latency_ms" in df.columns:
+            df["latency"] = df["total_latency_ms"]
+
         else:
-            print("Skipping (no latency column):", f)
             continue
+
+        ####################################################
+        # Add metadata
+        ####################################################
+
+        model = name.replace(".csv", "")
+        df["model"] = model
+        df["backend"] = backend
 
         dfs.append(df)
 
-    if dfs:
-        return pd.concat(dfs, ignore_index=True)
-
-    return pd.DataFrame()
-
-
-############################################################
-# Aggregate
-############################################################
-
-def aggregate():
-
-    print("Aggregating benchmark results...")
-
-    hf   = load_backend(HF_DIR, "HF")
-    vllm = load_backend(VLLM_DIR, "vLLM")
-    trt  = load_backend(TRT_DIR, "TensorRT-LLM")
-
-    df = pd.concat([hf, vllm, trt], ignore_index=True)
-
-    df.to_csv(OUT_CSV, index=False)
-
-    print("Saved aggregate CSV:")
-    print(OUT_CSV)
-
-    return df
+    return pd.concat(dfs, ignore_index=True)
 
 
 ############################################################
@@ -100,85 +91,69 @@ def aggregate():
 
 def plot(df):
 
-    print("Generating plots...")
-
     models = df["model"].unique()
 
     for model in models:
 
-        sub_model = df[df["model"] == model]
+        sub = df[df["model"] == model]
 
-        ####################################################
-        # Throughput plot
-        ####################################################
+        ###################################
+        # Throughput
+        ###################################
 
         plt.figure()
 
-        for backend in sub_model["backend"].unique():
+        for backend in sub["backend"].unique():
 
-            sub = sub_model[sub_model["backend"] == backend]
+            s = sub[sub["backend"] == backend]
 
             plt.plot(
-                sub["batch_size"],
-                sub["throughput"],
+                s["batch_size"],
+                s["throughput"],
                 marker="o",
                 label=backend
             )
 
+        plt.title(model)
         plt.xlabel("Batch Size")
         plt.ylabel("Tokens/sec")
-        plt.title(f"{model} Throughput")
         plt.legend()
         plt.grid()
 
-        out = os.path.join(OUT_DIR, f"{model}_throughput.png")
-        plt.savefig(out)
+        plt.savefig(
+            os.path.join(OUT_DIR, f"{model}_throughput.png")
+        )
+
         plt.close()
 
-        ####################################################
-        # Latency plot
-        ####################################################
+        ###################################
+        # Latency
+        ###################################
 
         plt.figure()
 
-        for backend in sub_model["backend"].unique():
+        for backend in sub["backend"].unique():
 
-            sub = sub_model[sub_model["backend"] == backend]
+            s = sub[sub["backend"] == backend]
 
             plt.plot(
-                sub["batch_size"],
-                sub["latency"],
+                s["batch_size"],
+                s["latency"],
                 marker="o",
                 label=backend
             )
 
+        plt.title(model)
         plt.xlabel("Batch Size")
-        plt.ylabel("Latency (ms)")
-        plt.title(f"{model} Latency")
+        plt.ylabel("Latency ms")
         plt.legend()
         plt.grid()
 
-        out = os.path.join(OUT_DIR, f"{model}_latency.png")
-        plt.savefig(out)
+        plt.savefig(
+            os.path.join(OUT_DIR, f"{model}_latency.png")
+        )
+
         plt.close()
-
-    print("Plots saved to:")
-    print(OUT_DIR)
-
-
-############################################################
-# Summary
-############################################################
-
-def summary(df):
-
-    print("\nAverage throughput by backend:\n")
-
-    print(
-        df.groupby("backend")["throughput"]
-        .mean()
-        .sort_values(ascending=False)
-    )
 
 
 ############################################################
@@ -187,15 +162,18 @@ def summary(df):
 
 def main():
 
-    df = aggregate()
+    print("Loading results...")
 
-    if df.empty:
-        print("No benchmark results found.")
-        return
+    df = load_all()
+
+    print("Saving aggregate CSV...")
+
+    df.to_csv(OUT_CSV, index=False)
 
     plot(df)
 
-    summary(df)
+    print("Done.")
+    print("Results:", OUT_DIR)
 
 
 if __name__ == "__main__":
