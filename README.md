@@ -795,7 +795,7 @@ Put this section after:
 and before:
 
 ```markdown
-## Results
+git fetch origin && git reset --hard origin/main && git pull
 ```
 
 ![alt text](image.png)
