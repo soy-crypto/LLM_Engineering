@@ -1,67 +1,94 @@
 #!/bin/bash
 set -euo pipefail
 
+echo "========================================"
+echo "Bootstrap LLaMA 3.1 8B → TensorRT-LLM"
+echo "GPU: L40S"
+echo "========================================"
+
+########################################
+# Paths
+########################################
+
 PROJECT="/workspace/LLM_Engineering"
 
 MODEL_ID="meta-llama/Llama-3.1-8B"
 MODEL_DIR="/workspace/hf_models/llama3_1_8b"
 
 HF_VENV="/workspace/.venv_hf"
-VLLM_VENV="/workspace/.venv_vllm"
 
 CKPT_DIR="/workspace/trt_ckpt/llama3_1_8b_bf16_1gpu"
 ENGINE_DIR="/workspace/trt_engine/llama3_1_8b_bf16_b16_s4096"
 
-echo "Bootstrapping LLaMA 3.1 8B"
+CONVERT_SCRIPT="/app/tensorrt_llm/examples/models/core/llama/convert_checkpoint.py"
 
 ########################################
-# HF venv
+# Validate TensorRT container
 ########################################
+
+if ! command -v trtllm-build >/dev/null; then
+    echo "ERROR: Must run inside TensorRT-LLM container"
+    exit 1
+fi
+
+python3 -c "import tensorrt_llm" || {
+    echo "ERROR: tensorrt_llm not installed"
+    exit 1
+}
+
+########################################
+# Create HF venv if needed
+########################################
+
 if [ ! -d "$HF_VENV" ]; then
+
+    echo ""
+    echo "Creating HuggingFace venv..."
+
     python3 -m venv "$HF_VENV"
     source "$HF_VENV/bin/activate"
 
     pip install --upgrade pip
 
-    pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
+    pip install \
+        torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
         --index-url https://download.pytorch.org/whl/cu121
 
-    pip install transformers==4.43.3 huggingface_hub protobuf
+    pip install \
+        transformers==4.43.3 \
+        huggingface_hub \
+        protobuf
 
     deactivate
 fi
 
 ########################################
-# vLLM venv
+# Activate HF venv
 ########################################
-if [ ! -d "$VLLM_VENV" ]; then
-    python3 -m venv "$VLLM_VENV"
-    source "$VLLM_VENV/bin/activate"
 
-    pip install --upgrade pip
-
-    pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 \
-        --index-url https://download.pytorch.org/whl/cu121
-
-    pip install vllm==0.15.1
-
-    deactivate
-fi
-
-########################################
-# HF login check
-########################################
 source "$HF_VENV/bin/activate"
 
+########################################
+# Verify HF login
+########################################
+
 if ! huggingface-cli whoami &>/dev/null; then
-    echo "Please login to HuggingFace first"
+
+    echo ""
+    echo "ERROR: HuggingFace login required"
+    echo "Run:"
+    echo "huggingface-cli login"
     exit 1
 fi
 
 ########################################
 # Download model
 ########################################
+
 if [ ! -f "$MODEL_DIR/config.json" ]; then
+
+    echo ""
+    echo "Downloading model from HuggingFace..."
 
     mkdir -p "$MODEL_DIR"
 
@@ -70,33 +97,37 @@ if [ ! -f "$MODEL_DIR/config.json" ]; then
         --local-dir-use-symlinks False
 fi
 
-deactivate
+echo "HF model ready: $MODEL_DIR"
 
-########################################
-# Require TensorRT-LLM container
-########################################
-command -v trtllm-build >/dev/null || {
-    echo "Run inside TensorRT-LLM container"
-    exit 1
-}
+deactivate
 
 ########################################
 # Convert checkpoint
 ########################################
+
 if [ ! -f "$CKPT_DIR/config.json" ]; then
+
+    echo ""
+    echo "Converting HF → TensorRT checkpoint..."
 
     mkdir -p "$CKPT_DIR"
 
-    python3 /app/tensorrt_llm/examples/models/core/llama/convert_checkpoint.py \
+    python3 -u "$CONVERT_SCRIPT" \
         --model_dir "$MODEL_DIR" \
         --output_dir "$CKPT_DIR" \
         --dtype bfloat16
 fi
 
+echo "Checkpoint ready: $CKPT_DIR"
+
 ########################################
-# Build engine
+# Build TensorRT engine
 ########################################
-if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
+
+if ! ls "$ENGINE_DIR"/*.engine >/dev/null 2>&1; then
+
+    echo ""
+    echo "Building TensorRT engine..."
 
     mkdir -p "$ENGINE_DIR"
 
@@ -113,4 +144,16 @@ if [ ! -f "$ENGINE_DIR/rank0.engine" ]; then
         --remove_input_padding enable
 fi
 
-echo "Done."
+echo ""
+echo "========================================"
+echo "Bootstrap complete"
+echo ""
+echo "HF model:"
+echo "$MODEL_DIR"
+echo ""
+echo "TRT checkpoint:"
+echo "$CKPT_DIR"
+echo ""
+echo "TRT engine:"
+echo "$ENGINE_DIR"
+echo "========================================"
