@@ -25,11 +25,7 @@ def main():
     print("Loading model once...")
     llm = LLM(model=args.model)
 
-    # Construct prompt with controlled context length
     prompt = ("hello " * args.context).strip()
-
-    print("Warmup run...")
-    llm.generate([prompt], SamplingParams(max_tokens=1))
 
     print("\nbackend,phase,batch,latency_ms,tokens_per_sec,gpu_mem_mb")
 
@@ -37,23 +33,23 @@ def main():
         prompts = [prompt] * batch
 
         # ------------------------
-        # PREFILL ONLY (decode=0)
+        # First token (prefill + 1 decode)
         # ------------------------
-        prefill_params = SamplingParams(max_tokens=0)
+        one_token_params = SamplingParams(max_tokens=1)
 
         start = time.time()
-        llm.generate(prompts, prefill_params)
+        outputs = llm.generate(prompts, one_token_params)
         end = time.time()
 
-        prefill_latency = end - start
+        first_token_latency = end - start
         mem = get_gpu_memory()
 
         print(
-            f"vllm,prefill,{batch},{prefill_latency*1000:.2f},0,{mem}"
+            f"vllm,first_token,{batch},{first_token_latency*1000:.2f},0,{mem}"
         )
 
         # ------------------------
-        # DECODE ONLY
+        # Full decode
         # ------------------------
         decode_params = SamplingParams(max_tokens=args.decode)
 
@@ -61,14 +57,14 @@ def main():
         outputs = llm.generate(prompts, decode_params)
         end = time.time()
 
-        decode_latency = end - start
+        full_latency = end - start
         total_tokens = sum(len(o.outputs[0].token_ids) for o in outputs)
 
-        tps = total_tokens / decode_latency
+        tps = total_tokens / full_latency
         mem = get_gpu_memory()
 
         print(
-            f"vllm,decode,{batch},{decode_latency*1000:.2f},{tps:.2f},{mem}"
+            f"vllm,full_decode,{batch},{full_latency*1000:.2f},{tps:.2f},{mem}"
         )
 
 
