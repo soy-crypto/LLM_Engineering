@@ -1,10 +1,19 @@
 # 🚀 LLM Inference Systems Study
 
-**KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering**
+**KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering · Serving Analysis**
 
 A GPU-native investigation of decoder-only LLM inference performance across HuggingFace, vLLM, and TensorRT-LLM, with explicit KV cache modeling and backend-aware benchmarking.
 
-This project studies how architectural parameters, GPU memory systems, and backend implementations determine real-world decode performance on 48GB-class GPUs.
+This project studies how:
+
+* Transformer architectural parameters
+* KV cache growth behavior
+* GPU memory hierarchy
+* Backend execution strategies
+* Engine compilation
+* Serving-layer scheduling
+
+determine real-world decode performance on 48GB-class GPUs.
 
 This is **inference systems engineering**, not model fine-tuning.
 
@@ -12,14 +21,15 @@ This is **inference systems engineering**, not model fine-tuning.
 
 # 🎯 Objective
 
-Understand when LLM inference is:
+Understand when LLM inference becomes:
 
 * **Compute-bound**
 * **Memory-bandwidth-bound**
 * **Memory-capacity-constrained**
 * **Backend-limited**
+* **Serving-saturation-bound**
 
-Rather than just measuring tokens/sec, this project models and validates the structural causes of performance behavior.
+Rather than reporting tokens/sec in isolation, this project models and validates the structural causes of performance behavior.
 
 ---
 
@@ -42,15 +52,46 @@ Rather than just measuring tokens/sec, this project models and validates the str
 
 # 🧠 Models Evaluated
 
-* Qwen2.5-0.5B-Instruct
-* Qwen2.5-1.5B
-* Qwen2.5-7B
-* Llama-3.1-8B
-* Mistral-7B
-* Gemma-7B
-* Phi-3-Mini
+Defined in:
 
-All experiments use **bfloat16** unless otherwise specified.
+```
+scripts/config/models.conf
+```
+
+## Model Registry
+
+```
+llama3_1_8b   | meta-llama/Llama-3.1-8B-Instruct
+qwen2_5_7b    | Qwen/Qwen2.5-7B-Instruct
+phi_3_mini    | microsoft/phi-3-mini-4k-instruct
+gemma_7b      | google/gemma-7b-it
+mistral_7b    | mistralai/Mistral-7B-Instruct-v0.3
+```
+
+Mapping format:
+
+```
+<internal_name> | <HuggingFace repo>
+```
+
+### Architectural Coverage
+
+| Model        | Vendor     | Approx Params | Notes                   |
+| ------------ | ---------- | ------------- | ----------------------- |
+| Llama-3.1-8B | Meta       | 8B            | Dense transformer       |
+| Qwen-2.5-7B  | Alibaba    | 7B            | Long context support    |
+| Phi-3 Mini   | Microsoft  | ~3.8B         | Compact architecture    |
+| Gemma-7B     | Google     | 7B            | Dense                   |
+| Mistral-7B   | Mistral AI | 7B            | Grouped-query attention |
+
+This ensures:
+
+* Cross-vendor validation
+* Different KV growth characteristics
+* Different attention patterns
+* Backend-agnostic inference conclusions
+
+All experiments use **bfloat16** unless specified.
 
 ---
 
@@ -62,16 +103,16 @@ All experiments use **bfloat16** unless otherwise specified.
 | vLLM         | Paged KV    | Custom CUDA kernels  |
 | TensorRT-LLM | Paged KV    | Engine-compiled CUDA |
 
-This comparison isolates:
+This isolates:
 
 * Kernel fusion impact
-* KV memory layout strategy
-* Scheduling differences
-* Engine compilation advantages
+* KV layout strategy
+* Scheduler differences
+* Engine-level optimization
 
 ---
 
-# 🧮 KV Cache Model
+# 🧮 KV Cache Analytical Model
 
 For decoder-only transformers:
 
@@ -104,15 +145,13 @@ KV memory scales linearly with:
 * Model depth
 * Hidden dimension
 
-This model allows prediction of memory regime transitions.
-
-Implementation:
+Implemented in:
 
 ```
 analysis/model_kv_theory.py
 ```
 
-Supporting documents:
+Supporting design documents:
 
 * `analysis/scaling_design.md`
 * `analysis/production_tradeoffs.md`
@@ -144,16 +183,8 @@ bf16 precision
 
 * KV memory increased ~1.3GB
 * Per-token decode latency increased moderately
-* Throughput degradation was mild
-* Decode did not collapse under longer context
-
-### Interpretation
-
-At 48GB memory headroom:
-
-* Decode remains largely compute-efficient
-* KV growth measurable but bandwidth not saturated
-* Arithmetic intensity remains sufficient
+* Throughput degradation mild
+* Decode stable under longer context
 
 Raw data:
 
@@ -177,17 +208,10 @@ bf16 precision
 | 8     | 5.38       | 42.03          | 190.33             | 27696        |
 | 16    | OOM        | —              | —                  | >40GB        |
 
-### Observations
+### Regime Transition
 
-* Throughput scales strongly up to batch 8
-* Latency increases with batch
-* Memory scales linearly
-* OOM at batch 16
-
-### Interpretation
-
-* Batch 1–4: compute-efficient regime
-* Batch 8: bandwidth pressure begins
+* Batch 1–4: compute-efficient
+* Batch 8: bandwidth pressure
 * Batch 16: memory capacity limit
 
 ---
@@ -202,19 +226,17 @@ Batch = 1
 | FP16  | 3.24       | 25.29          | 39.54              | 16871        |
 | FP32  | 8.31       | 64.94          | 15.40              | 36794        |
 
-### Interpretation
-
-FP16 enables:
+FP16:
 
 * Tensor Core acceleration
 * Reduced memory footprint
-* Higher effective bandwidth
+* Higher arithmetic intensity
 
 FP32:
 
-* Doubles memory
-* Reduces compute throughput
-* Pushes decode toward bandwidth stress
+* Doubled memory
+* Reduced throughput
+* Increased bandwidth stress
 
 ---
 
@@ -225,11 +247,11 @@ FP32:
 * P95 latency: 4.97 sec
 * Max latency: 5.14 sec
 
-Dynamic batching introduces:
+Dynamic batching:
 
-* Improved GPU utilization
-* Increased tail latency
-* Latency variance due to scheduling
+* Improves utilization
+* Increases tail latency
+* Introduces scheduling variance
 
 Serving implementation:
 
@@ -269,13 +291,7 @@ LLM_Engineering/
 │   └── scaling_study/
 │
 ├── prompts/
-│
 ├── env/
-│   ├── hf_requirements.txt
-│   ├── vllm_requirements.txt
-│   ├── trt_requirements.txt
-│   └── serving_requirements.txt
-│
 ├── scripts/
 │   ├── bootstrap_host.sh
 │   ├── download_models.sh
@@ -287,7 +303,6 @@ LLM_Engineering/
 │   └── run/
 │
 ├── serving/
-│
 └── results/
     ├── per-backend CSV outputs
     └── aggregate/
@@ -309,7 +324,7 @@ LLM_Engineering/
 
 ## Install NVIDIA & Docker
 
-```bash
+```
 chmod +x bootstrap_host.sh
 ./bootstrap_host.sh
 ```
@@ -323,46 +338,18 @@ Installs:
 
 ---
 
-# Backend Environments
+# TensorRT-LLM Container
 
-## HuggingFace
+Pull:
 
-```bash
-python3 -m venv .venv_hf
-source .venv_hf/bin/activate
-pip install -r env/hf_requirements.txt
 ```
-
-## vLLM
-
-```bash
-python3 -m venv .venv_vllm
-source .venv_vllm/bin/activate
-pip install -r env/vllm_requirements.txt
-```
-
-## Serving
-
-```bash
-python3 -m venv .venv_serving
-source .venv_serving/bin/activate
-pip install -r env/serving_requirements.txt
-```
-
----
-
-# TensorRT-LLM Setup
-
-Pull container:
-
-```bash
 docker login nvcr.io
 docker pull nvcr.io/nvidia/tensorrt-llm/release:1.3.0rc3
 ```
 
-Allocate large shared memory container:
+Run large container:
 
-```bash
+```
 docker run -it --gpus all --shm-size=32g \
   --name trt_llm_big \
   -v /ephemeral/llm_workspace:/workspace \
@@ -372,18 +359,18 @@ docker run -it --gpus all --shm-size=32g \
   bash
 ```
 
-Convert checkpoint:
+Convert:
 
-```bash
+```
 python convert_checkpoint.py \
   --model_dir hf_models/llama3_1_8b \
   --output_dir trt_ckpt/llama3_1_8b \
   --dtype bfloat16
 ```
 
-Build engine:
+Build:
 
-```bash
+```
 trtllm-build \
   --checkpoint_dir trt_ckpt/llama3_1_8b \
   --output_dir trt_engine/llama3_1_8b \
@@ -395,14 +382,14 @@ trtllm-build \
 
 # 🔁 End-to-End Workflow
 
-## One-Time Setup
+### One-Time Setup
 
 ```
 ./scripts/bootstrap_host.sh
 ./scripts/download_models.sh
 ```
 
-## Setup Backends
+### Setup Backends
 
 ```
 ./scripts/bootstrap/bootstrap_hf.sh
@@ -411,19 +398,19 @@ trtllm-build \
 ./scripts/bootstrap/trtllm/bootstrap_all_trt.sh
 ```
 
-## Run Benchmarks
+### Run Benchmarks
 
 ```
 ./scripts/run/run_all_backends.sh
 ```
 
-## Aggregate
+### Aggregate
 
 ```
 python benchmarks/run_analysis.py
 ```
 
-## Fully Automated
+### Fully Automated
 
 ```
 ./scripts/run/run_full_experiment.sh
@@ -447,13 +434,4 @@ Includes:
 * Backend comparison
 * Aggregate plots
 * Experiment metadata
-
----
-
-# 🔭 Future Work
-
-* Multi-GPU tensor parallel study
-* INT8 / FP8 quantization comparison
-* Roofline intensity modeling
-* Communication-bound regime analysis
-* Triton production deployment
+* Serving latency plots
