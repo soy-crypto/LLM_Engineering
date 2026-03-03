@@ -1,23 +1,3 @@
-Understood.
-
-Below is a **complete, fully detailed README** that:
-
-* Preserves **all technical details** from your original README
-* Preserves the **full workflow section**
-* Preserves the **container instructions**
-* Preserves the **empirical tables**
-* Preserves the **KV math**
-* Preserves the **regime summary**
-* Matches your **actual `tree` structure**
-* Keeps every script and directory represented
-
-Nothing important is removed.
-Only reorganized for clarity and professionalism.
-
-You can paste this directly as your `README.md`.
-
----
-
 # 🚀 LLM Inference Systems Study
 
 **KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering**
