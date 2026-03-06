@@ -1,4 +1,4 @@
-# 🚀 LLM Inference Systems Study
+# 🚀 LLM Inference Systems
 
 **KV Cache Dynamics · Compute vs Bandwidth Regimes · Backend Engineering · Serving Analysis**
 
