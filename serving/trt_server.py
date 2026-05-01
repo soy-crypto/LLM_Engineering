@@ -70,6 +70,7 @@ async def batching_worker():
                 "latency": time.time() - item["arrival"]
             })
 
+
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(batching_worker())

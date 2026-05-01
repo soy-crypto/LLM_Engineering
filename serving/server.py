@@ -22,9 +22,7 @@ MAX_NEW_TOKENS = 64
 # ==============================
 # Initialize Model Once
 # ==============================
-
 print("Loading model...")
-
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 tokenizer.pad_token = tokenizer.eos_token
 
@@ -78,7 +76,6 @@ async def generate(req: GenerateRequest):
 # ==============================
 # Batching Worker
 # ==============================
-
 async def batching_worker():
     while True:
         await asyncio.sleep(MAX_WAIT_TIME)
@@ -117,7 +114,6 @@ async def batching_worker():
 # ==============================
 # Startup Event
 # ==============================
-
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(batching_worker())
