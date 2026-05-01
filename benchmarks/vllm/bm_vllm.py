@@ -212,22 +212,10 @@ def main():
             )
 
 
-            writer.writerow([
-                args.backend,
-                args.model,
-                args.dtype,
-                device,
-                size,
-                f"{avg_ttft:.6f}",
-                f"{avg_lat:.6f}",
-                f"{avg_tokps:.2f}",
-                f"{gpu_mem:.0f}",
-            ])
-
+            writer.writerow([args.backend, args.model, args.dtype, device, size, f"{avg_ttft:.6f}", f"{avg_lat:.6f}", f"{avg_tokps:.2f}", f"{gpu_mem:.0f}"])
 
     print("\nDone.")
     print("Results saved to:", args.out_csv)
-
 
 # ----------------------------
 # Entry
