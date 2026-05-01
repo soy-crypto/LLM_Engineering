@@ -153,18 +153,7 @@ def main():
     with open(args.out_csv, "a", newline="") as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow([
-                "backend",
-                "model",
-                "dtype",
-                "device",
-                "batch_size",
-                "avg_ttft",
-                "avg_latency",
-                "tokens_per_sec",
-                "gpu_mem_mb",
-            ])
-
+            writer.writerow(["backend", "model", "dtype", "device", "batch_size", "avg_ttft", "avg_latency", "tokens_per_sec", "gpu_mem_mb"])
 
         # ----------------------------
         # Loop batch sizes
@@ -192,7 +181,6 @@ def main():
             avg_lat = sum(lats) / len(lats)
             avg_tokps = sum(tokps) / len(tokps)
             gpu_mem = get_gpu_mem_mb()
-
 
             print(
                 f"[{size}] "
