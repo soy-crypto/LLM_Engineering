@@ -10,7 +10,6 @@ from vllm import LLM, SamplingParams
 # ----------------------------
 # Args
 # ----------------------------
-
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="vLLM LLM Benchmark")
     
@@ -32,7 +31,6 @@ def get_args() -> argparse.Namespace:
 # ----------------------------
 # Device
 # ----------------------------
-
 def get_device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -40,7 +38,6 @@ def get_device() -> str:
 # ----------------------------
 # Prompts
 # ----------------------------
-
 def get_prompts(path: str) -> List[str]:
 
     prompts: List[str] = []
@@ -60,7 +57,6 @@ def get_prompts(path: str) -> List[str]:
 # ----------------------------
 # Batch sizes
 # ----------------------------
-
 def get_sizes(batch_size: str) -> List[int]:
     return [int(x.strip()) for x in batch_size.split(",") if x.strip()]
 
@@ -68,7 +64,6 @@ def get_sizes(batch_size: str) -> List[int]:
 # ----------------------------
 # Build batch
 # ----------------------------
-
 def build_batch(prompts: List[str], size: int) -> List[str]:
     return (prompts * (size // len(prompts) + 1))[:size]
 
@@ -76,7 +71,6 @@ def build_batch(prompts: List[str], size: int) -> List[str]:
 # ----------------------------
 # GPU memory
 # ----------------------------
-
 def get_gpu_mem_mb() -> float:
     if not torch.cuda.is_available():
         return 0.0
@@ -89,7 +83,6 @@ def get_gpu_mem_mb() -> float:
 # ----------------------------
 # Measure TTFT
 # ----------------------------
-
 def measure_ttft(llm: LLM, batch: List[str]) -> float:
     params = SamplingParams(max_tokens=1, temperature=0.0)
     
@@ -106,7 +99,6 @@ def measure_ttft(llm: LLM, batch: List[str]) -> float:
 # ----------------------------
 # Measure throughput
 # ----------------------------
-
 def measure_throughput(llm: LLM, batch: List[str], max_tokens: int) -> Tuple[float, int]:
 
     params = SamplingParams( max_tokens=max_tokens, temperature=0.0)
@@ -130,7 +122,6 @@ def measure_throughput(llm: LLM, batch: List[str], max_tokens: int) -> Tuple[flo
 # ----------------------------
 # Main
 # ----------------------------
-
 def main():
 
     args = get_args()
