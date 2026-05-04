@@ -48,6 +48,7 @@ def load_prompts(path: str) -> List[str]:
         raise ValueError(f"No prompts found in {path}")
 
     return prompts
+
 def build_batch(prompts: List[str], batch_size: int) -> List[str]:
     return (prompts * (batch_size // len(prompts) + 1))[:batch_size]
 
@@ -58,7 +59,7 @@ def build_batch(prompts: List[str], batch_size: int) -> List[str]:
 @torch.inference_mode()
 def trt_generate(runner: ModelRunner, batch_input_ids, max_new_tokens, end_id, pad_id):
     sampling_config = SamplingConfig(end_id=end_id, pad_id=pad_id, max_new_tokens=max_new_tokens, temperature=0.0, top_p=1.0,)
-    return runner.generate(batch_input_ids=batch_input_ids, sampling_config=sampling_config,)
+    return runner.generate(batch_input_ids=batch_input_ids, sampling_config=sampling_config)
 
 
 # ------------------------------------------------
@@ -115,9 +116,7 @@ def main():
             batch_prompts = build_batch(prompts, BATCH)
             inputs = tokenizer( batch_prompts, return_tensors="pt", padding=True, truncation=True)
             input_ids = inputs["input_ids"].cuda()
-
             batch_input_ids = [ input_ids[i].contiguous() for i in range(input_ids.size(0))]
-
             # -----------------------------
             # Warmup
             # -----------------------------
