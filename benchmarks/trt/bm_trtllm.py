@@ -28,7 +28,6 @@ def get_args():
 
     return parser.parse_args()
 
-
 # ------------------------------------------------
 # Helpers
 # ------------------------------------------------
@@ -49,6 +48,7 @@ def load_prompts(path: str) -> List[str]:
 
     return prompts
 
+
 def build_batch(prompts: List[str], batch_size: int) -> List[str]:
     return (prompts * (batch_size // len(prompts) + 1))[:batch_size]
 
@@ -66,14 +66,12 @@ def trt_generate(runner: ModelRunner, batch_input_ids, max_new_tokens, end_id, p
 # Main
 # ------------------------------------------------
 def main():
-
     args = get_args()
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for TensorRT-LLM benchmark")
 
     batch_sizes = parse_batch_sizes(args.batch_size)
     prompts = load_prompts(args.prompts)
-
     # ------------------------------------------------
     # Load tokenizer
     # ------------------------------------------------
@@ -135,6 +133,7 @@ def main():
                 trt_generate(runner, batch_input_ids, 1, end_id, pad_id)
                 torch.cuda.synchronize()
                 t1 = time.perf_counter()
+                
                 ttft = t1 - t0
                 ttft_list.append(ttft)
 
@@ -144,9 +143,9 @@ def main():
                 trt_generate(runner, batch_input_ids, args.max_new_tokens, end_id, pad_id)
                 torch.cuda.synchronize()
                 s1 = time.perf_counter()
-                latency = s1 - s0
-                latency_list.append(latency)
-                tokps = (BATCH * args.max_new_tokens) / latency
+                
+                latency_list.append(s1 - s0)
+                tokps = (BATCH * args.max_new_tokens) / (s1 - s0)
                 tokps_list.append(tokps)
 
             # -----------------------------
