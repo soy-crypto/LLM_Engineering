@@ -5,7 +5,7 @@
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$PROJECT/setup/.env"
+ENV_FILE="$PROJECT/setup_v2/.env"
 
 echo "========================================"
 echo "LLM Engineering — Full Setup"
@@ -17,8 +17,8 @@ echo "========================================"
 # -------------------------------------------------------
 if [ ! -f "$ENV_FILE" ]; then
     echo ""
-    echo "No setup/.env found. Creating from template..."
-    cp "$PROJECT/setup/.env.template" "$ENV_FILE"
+    echo "No setup_v2/.env found. Creating from template..."
+    cp "$PROJECT/setup_v2/.env.template" "$ENV_FILE"
     echo ""
     echo "  ACTION REQUIRED:"
     echo "  Edit env/.env and set your HUGGINGFACE_HUB_TOKEN, then re-run this script."

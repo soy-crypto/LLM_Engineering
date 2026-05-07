@@ -4,7 +4,7 @@
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$PROJECT/setup/.env"
+ENV_FILE="$PROJECT/setup_v2/.env"
 
 PASS=0
 FAIL=0
