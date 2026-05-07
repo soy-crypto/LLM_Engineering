@@ -3,7 +3,7 @@ set -euo pipefail
 
 export TRANSFORMERS_TRUST_REMOTE_CODE=1
 
-CONFIG="/workspace/LLM_Engineering/scripts/config/models.conf"
+CONFIG="/workspace/LLM_Engineering/scripts_v2/config/models.conf"
 MODEL_DIR="/workspace/hf_models"
 PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
 OUT="/workspace/LLM_Engineering/results/results_hf.csv"

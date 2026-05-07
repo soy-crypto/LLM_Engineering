@@ -6,7 +6,7 @@ PROJECT="$WORKSPACE/LLM_Engineering"
 
 VLLM_VENV="$WORKSPACE/.venv_vllm"
 RESULTS_DIR="$PROJECT/results"
-CONFIG_FILE="$PROJECT/scripts/config/models.conf"
+CONFIG_FILE="$PROJECT/scripts_v2/config/models.conf"
 
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 

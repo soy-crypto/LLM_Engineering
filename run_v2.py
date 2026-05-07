@@ -47,9 +47,9 @@ def run_experiments():
     print("=" * 80)
     print("Running experiments")
     print("=" * 80)
-    subprocess.run(["bash", "scripts/bootstrap/bootstrap_hf.sh"], check=True)
-    subprocess.run(["bash", "scripts/bootstrap/bootstrap_vllm.sh"], check=True)
-    subprocess.run(["bash", "scripts/run/run_all_backends.sh"], check=True)
+    subprocess.run(["bash", "scripts_v2/bootstrap/bootstrap_hf.sh"], check=True)
+    subprocess.run(["bash", "scripts_v2/bootstrap/bootstrap_vllm.sh"], check=True)
+    subprocess.run(["bash", "scripts_v2/run/run_all_backends.sh"], check=True)
 
 
 def run_analysis():

@@ -3,7 +3,7 @@ set -euo pipefail
 
 WORKSPACE="/workspace"
 MODELS_DIR="$WORKSPACE/hf_models"
-CONFIG_FILE="$WORKSPACE/LLM_Engineering/scripts/config/models.conf"
+CONFIG_FILE="$WORKSPACE/LLM_Engineering/scripts_v2/config/models.conf"
 
 echo "================================="
 echo "Downloading models from config"
