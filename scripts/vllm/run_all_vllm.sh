@@ -38,7 +38,7 @@ run_model () {
     echo ""
     echo "Running: $NAME"
 
-    python "$PROJECT/benchmarks/vllm/bm_vllm.py" \
+    python "$PROJECT/benchmarks_v2/vllm/benchmark.py" \
         --model "$MODEL_PATH" \
         --prompts "$PROMPTS" \
         --batch_size "1,2,4,8" \

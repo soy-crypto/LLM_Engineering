@@ -8,7 +8,7 @@ MODEL_DIR="/workspace/hf_models"
 PROMPTS="/workspace/LLM_Engineering/prompts/prompts_mid.txt"
 OUT="/workspace/LLM_Engineering/results/results_hf.csv"
 PYTHON="/workspace/.venv_hf/bin/python"
-BENCH="/workspace/LLM_Engineering/benchmarks/hf/bm_hf.py"
+BENCH="/workspace/LLM_Engineering/benchmarks_v2/hf/benchmark.py"
 
 echo "Using config: $CONFIG"
 echo ""

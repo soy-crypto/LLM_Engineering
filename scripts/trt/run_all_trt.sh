@@ -57,11 +57,7 @@ run_benchmark () {
         return
     fi
 
-    if [ ! -f "$OUT_CSV" ]; then
-        echo "backend,model,batch_size,avg_ttft,avg_latency,tokps_new" > "$OUT_CSV"
-    fi
-
-    /usr/bin/python3 -u "$PROJECT/benchmarks/trt/bm_trtllm.py" \
+    /usr/bin/python3 -u "$PROJECT/benchmarks_v2/trt/benchmark.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \
         --prompts "$PROMPTS" \
