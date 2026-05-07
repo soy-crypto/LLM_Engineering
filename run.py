@@ -45,9 +45,11 @@ def build_trt_engines():
 
 def run_experiments():
     print("=" * 80)
-    print("Running full experiment pipeline")
+    print("Running experiments")
     print("=" * 80)
-    subprocess.run(["./scripts/run/run_full_experiment.sh"], check=True)
+    subprocess.run(["bash", "scripts/bootstrap/bootstrap_hf.sh"], check=True)
+    subprocess.run(["bash", "scripts/bootstrap/bootstrap_vllm.sh"], check=True)
+    subprocess.run(["bash", "scripts/run/run_all_backends.sh"], check=True)
 
 
 def run_analysis():
