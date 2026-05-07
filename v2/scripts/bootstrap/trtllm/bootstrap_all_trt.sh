@@ -5,7 +5,7 @@ echo "========================================"
 echo "TensorRT-LLM: Build All Models"
 echo "========================================"
 
-BASE_DIR="/workspace/LLM_Engineering/scripts_v2/bootstrap/trtllm"
+BASE_DIR="/workspace/LLM_Engineering/v2/scripts/bootstrap/trtllm"
 
 run_model () {
     local SCRIPT="$1"

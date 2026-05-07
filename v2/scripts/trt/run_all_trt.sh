@@ -57,7 +57,7 @@ run_benchmark () {
         return
     fi
 
-    /usr/bin/python3 -u "$PROJECT/benchmarks_v2/trt/benchmark.py" \
+    /usr/bin/python3 -u "$PROJECT/v2/benchmarks/trt/benchmark.py" \
         --engine_dir "$ENGINE_DIR" \
         --model_id "$MODEL_ID" \
         --prompts "$PROMPTS" \

@@ -19,7 +19,7 @@ Refactored benchmarking suite for HuggingFace, vLLM, and TensorRT-LLM backends.
 ## Structure
 
 ```
-benchmarks_v2/
+v2/benchmarks/
 ├── common.py          # Shared utilities: load_prompts, CsvWriter, etc.
 ├── hf/
 │   └── benchmark.py  # HuggingFace benchmark
@@ -54,7 +54,7 @@ All three backends write the same columns:
 ### HuggingFace
 
 ```bash
-python benchmarks_v2/hf/benchmark.py \
+python v2/benchmarks/hf/benchmark.py \
   --model /workspace/hf_models/llama3_1_8b \
   --prompts prompts/prompts_mid.txt \
   --batch_size 1,2,4,8 \
@@ -66,7 +66,7 @@ python benchmarks_v2/hf/benchmark.py \
 ### vLLM
 
 ```bash
-python benchmarks_v2/vllm/benchmark.py \
+python v2/benchmarks/vllm/benchmark.py \
   --model /workspace/hf_models/llama3_1_8b \
   --prompts prompts/prompts_mid.txt \
   --batch_size 1,2,4,8 \
@@ -80,7 +80,7 @@ python benchmarks_v2/vllm/benchmark.py \
 Must run inside the TensorRT-LLM container.
 
 ```bash
-python benchmarks_v2/trt/benchmark.py \
+python v2/benchmarks/trt/benchmark.py \
   --engine_dir /workspace/trt_engine/llama3_1_8b_bf16_b16_s4096 \
   --model_id meta-llama/Llama-3.1-8B \
   --prompts prompts/prompts_mid.txt \
@@ -100,7 +100,7 @@ python benchmarks_v2/trt/benchmark.py \
 ## Analyzing Results
 
 ```bash
-python benchmarks_v2/analyze.py
+python v2/benchmarks/analyze.py
 ```
 
 Reads all `*.csv` files from `results/`, produces:

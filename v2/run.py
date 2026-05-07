@@ -36,7 +36,7 @@ def build_trt_engines():
             continue
         print(f"\nBuilding: {model_id}")
         subprocess.run(
-            ["bash", "benchmarks_v2/trt/build.sh",
+            ["bash", "v2/benchmarks/trt/build.sh",
              "--model_id", model_id,
              "--engine_dir", engine_dir],
             check=True,
@@ -47,9 +47,9 @@ def run_experiments():
     print("=" * 80)
     print("Running experiments")
     print("=" * 80)
-    subprocess.run(["bash", "scripts_v2/bootstrap/bootstrap_hf.sh"], check=True)
-    subprocess.run(["bash", "scripts_v2/bootstrap/bootstrap_vllm.sh"], check=True)
-    subprocess.run(["bash", "scripts_v2/run/run_all_backends.sh"], check=True)
+    subprocess.run(["bash", "v2/scripts/bootstrap/bootstrap_hf.sh"], check=True)
+    subprocess.run(["bash", "v2/scripts/bootstrap/bootstrap_vllm.sh"], check=True)
+    subprocess.run(["bash", "v2/scripts/run/run_all_backends.sh"], check=True)
 
 
 def run_analysis():

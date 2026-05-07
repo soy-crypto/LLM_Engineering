@@ -6,7 +6,7 @@ PROJECT="$WORKSPACE/LLM_Engineering"
 
 VLLM_VENV="$WORKSPACE/.venv_vllm"
 RESULTS_DIR="$PROJECT/results"
-CONFIG_FILE="$PROJECT/scripts_v2/config/models.conf"
+CONFIG_FILE="$PROJECT/v2/scripts/config/models.conf"
 
 PROMPTS="$PROJECT/prompts/prompts_mid.txt"
 
@@ -38,7 +38,7 @@ run_model () {
     echo ""
     echo "Running: $NAME"
 
-    python "$PROJECT/benchmarks_v2/vllm/benchmark.py" \
+    python "$PROJECT/v2/benchmarks/vllm/benchmark.py" \
         --model "$MODEL_PATH" \
         --prompts "$PROMPTS" \
         --batch_size "1,2,4,8" \
