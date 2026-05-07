@@ -15,18 +15,35 @@ def get_args():
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--prompts", type=str, required=True)
     parser.add_argument("--batch_size", type=str, default="1,2,4,8")
-    parser.add_argument("--max_new_tokens", type=int, default=512)
+    parser.add_argument("--max_new_tokens", type=int, default=64)
     parser.add_argument("--warmup", type=int, default=1)
-    parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--dtype", type=str, default="bfloat16", choices=["bfloat16", "float16", "float32"])
-    parser.add_argument("--out_csv", type=str, required=True)
+    parser.add_argument("--runs", type=int, default=10)
+    parser.add_argument("--do_sample", action="store_true")
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top_p", type=float, default=1.0)
+    parser.add_argument("--dtype", type=str, default="auto", choices=["auto", "bfloat16", "float16", "float32"])
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--out_csv", type=str, default="results.csv")
     parser.add_argument("--backend", type=str, default="HF")
     return parser.parse_args()
 
 
+def set_seed(seed: int, device: str):
+    torch.manual_seed(seed)
+    if device == "cuda":
+        torch.cuda.manual_seed_all(seed)
+
+
 def load_model(model_name: str, dtype_str: str, device: str):
-    dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
-    torch_dtype = dtype_map[dtype_str]
+    if dtype_str == "auto":
+        if device == "cuda":
+            torch_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        else:
+            torch_dtype = torch.float32
+    else:
+        dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+        torch_dtype = dtype_map[dtype_str]
+
     if device == "cpu":
         torch_dtype = torch.float32
 
@@ -35,6 +52,7 @@ def load_model(model_name: str, dtype_str: str, device: str):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # DO NOT use device_map="auto" — force full GPU placement
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch_dtype, trust_remote_code=True, low_cpu_mem_usage=True
     ).to(device).eval()
@@ -42,75 +60,105 @@ def load_model(model_name: str, dtype_str: str, device: str):
     if device == "cuda":
         torch.cuda.empty_cache()
 
-    return model, tokenizer, str(torch_dtype).split(".")[-1]
+    return model, tokenizer, torch_dtype
 
 
-def build_inputs(prompts, batch_size, tokenizer, device) -> Dict[str, Any]:
-    batch = build_batch(prompts, batch_size)
-    tokens = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
-    return {k: v.to(device) for k, v in tokens.items()}
+def build_params(inputs: Dict[str, Any], args, tokenizer) -> Dict[str, Any]:
+    params = dict(inputs)
+    params.update(dict(
+        max_new_tokens=args.max_new_tokens,
+        do_sample=args.do_sample,
+        pad_token_id=tokenizer.pad_token_id,
+        use_cache=True,
+    ))
+    if args.do_sample:
+        params.update(dict(temperature=args.temperature, top_p=args.top_p))
+    return params
 
 
 @torch.inference_mode()
-def generate(model, inputs: Dict[str, Any], max_new_tokens: int, tokenizer) -> Tuple[float, int]:
-    device = next(model.parameters()).device.type
+def measure(
+    model,
+    params: Dict[str, Any],
+    device: str,
+    max_new_token_override: Optional[int] = None,
+) -> Tuple[float, int, int]:
+    p = dict(params)
+    if max_new_token_override is not None:
+        p["max_new_tokens"] = max_new_token_override
+
     if device == "cuda":
         torch.cuda.synchronize()
     t0 = time.perf_counter()
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        do_sample=False,
-        pad_token_id=tokenizer.pad_token_id,
-        use_cache=True,
-    )
+    outputs = model.generate(**p)
     if device == "cuda":
         torch.cuda.synchronize()
     elapsed = time.perf_counter() - t0
-    new_tokens = outputs.shape[0] * (outputs.shape[1] - inputs["input_ids"].shape[1])
-    return elapsed, new_tokens
+
+    batch_size = outputs.size(0)
+    total_seq_len = outputs.size(1)
+    output_tokens = batch_size * total_seq_len
+    # Use attention_mask to precisely count prompt tokens across padded batches
+    prompt_tokens = int(p["attention_mask"].sum().item())
+    new_tokens = max(output_tokens - prompt_tokens, 0)
+
+    return elapsed, output_tokens, new_tokens
 
 
 def main():
     args = get_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    set_seed(args.seed, device)
     prompts = load_prompts(args.prompts)
     batch_sizes = parse_batch_sizes(args.batch_size)
 
-    model, tokenizer, dtype_label = load_model(args.model, args.dtype, device)
+    model, tokenizer, torch_dtype = load_model(args.model, args.dtype, device)
+    dtype_label = str(torch_dtype).split(".")[-1]
+
     print(f"HuggingFace | model={args.model} | dtype={dtype_label} | device={device}")
-    print("-" * 80)
+    print(f"prompts={args.prompts} ({len(prompts)} lines) | max_new_tokens={args.max_new_tokens}")
+    print("-" * 90)
 
     writer = CsvWriter(args.out_csv)
 
     for bs in batch_sizes:
-        inputs = build_inputs(prompts, bs, tokenizer, device)
+        batch = build_batch(prompts, bs)
+        tokens = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+        inputs = {k: v.to(device) for k, v in tokens.items()}
+        params = build_params(inputs, args, tokenizer)
 
         for _ in range(args.warmup):
-            generate(model, inputs, min(8, args.max_new_tokens), tokenizer)
+            measure(model, params, device)
 
-        ttft_list, latency_list, tokps_list = [], [], []
+        ttft_list, latency_list, new_tokens_list = [], [], []
 
         for _ in range(args.runs):
-            ttft, _ = generate(model, inputs, 1, tokenizer)
-            lat, new_tokens = generate(model, inputs, args.max_new_tokens, tokenizer)
+            ttft, _, _ = measure(model, params, device, max_new_token_override=1)
+            lat, _, new_tokens = measure(model, params, device)
             ttft_list.append(ttft)
             latency_list.append(lat)
-            tokps_list.append(new_tokens / lat if lat > 0 else 0)
+            new_tokens_list.append(new_tokens)
 
         avg_ttft = sum(ttft_list) / len(ttft_list)
         avg_lat = sum(latency_list) / len(latency_list)
-        avg_tokps = sum(tokps_list) / len(tokps_list)
+        avg_new = sum(new_tokens_list) / len(new_tokens_list)
+        tokps_new = avg_new / avg_lat if avg_lat > 0 else 0
         gpu_mem = get_gpu_mem_mb()
 
-        print(f"[bs={bs}] ttft={avg_ttft:.4f}s  lat={avg_lat:.4f}s  tok/s={avg_tokps:.1f}  gpu={gpu_mem:.0f}MB")
-        writer.write(args.backend, args.model, dtype_label, bs, avg_ttft, avg_lat, avg_tokps, gpu_mem)
+        print(
+            f"[bs={bs}] ttft={avg_ttft:.4f}s  lat={avg_lat:.4f}s  "
+            f"tok/s(new)={tokps_new:.2f}  gpu={gpu_mem:.0f}MB"
+        )
+        writer.write(args.backend, args.model, dtype_label, bs, avg_ttft, avg_lat, tokps_new, gpu_mem)
 
     writer.close()
-    print("-" * 80)
+    print("-" * 90)
     print(f"Results saved to: {args.out_csv}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: {e}")

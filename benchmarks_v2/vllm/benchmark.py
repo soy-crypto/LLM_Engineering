@@ -19,6 +19,7 @@ def get_args():
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--gpu_mem_util", type=float, default=0.90)
+    parser.add_argument("--enforce_eager", action="store_true")
     parser.add_argument("--out_csv", type=str, required=True)
     parser.add_argument("--backend", type=str, default="vLLM")
     return parser.parse_args()
@@ -53,7 +54,7 @@ def main():
     print(f"vLLM | model={args.model} | dtype={args.dtype}")
     print("-" * 80)
 
-    llm = LLM(model=args.model, dtype=args.dtype, gpu_memory_utilization=args.gpu_mem_util, tensor_parallel_size=1)
+    llm = LLM(model=args.model, dtype=args.dtype, gpu_memory_utilization=args.gpu_mem_util, enforce_eager=args.enforce_eager, tensor_parallel_size=1)
     writer = CsvWriter(args.out_csv)
 
     for bs in batch_sizes:
@@ -85,4 +86,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: {e}")
