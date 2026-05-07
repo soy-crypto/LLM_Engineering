@@ -25,12 +25,63 @@ def get_args():
     return parser.parse_args()
 
 
+def load_tokenizer(model_id: str):
+    tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True, trust_remote_code=True)
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
+def tokenize_batch(tokenizer, prompts, batch_size: int):
+    batch = build_batch(prompts, batch_size)
+    inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+    input_ids = inputs["input_ids"].cuda()
+    return [input_ids[i].contiguous() for i in range(input_ids.size(0))]
+
+
 @torch.inference_mode()
 def trt_generate(runner: ModelRunner, batch_input_ids, max_new_tokens: int, end_id: int, pad_id: int):
     sampling_config = SamplingConfig(
         end_id=end_id, pad_id=pad_id, max_new_tokens=max_new_tokens, temperature=0.0, top_p=1.0
     )
     return runner.generate(batch_input_ids=batch_input_ids, sampling_config=sampling_config)
+
+
+def measure_ttft(runner: ModelRunner, batch_input_ids, end_id: int, pad_id: int) -> float:
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    trt_generate(runner, batch_input_ids, 1, end_id, pad_id)
+    torch.cuda.synchronize()
+    return time.perf_counter() - t0
+
+
+def measure_throughput(runner: ModelRunner, batch_input_ids, max_new_tokens: int, end_id: int, pad_id: int):
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    trt_generate(runner, batch_input_ids, max_new_tokens, end_id, pad_id)
+    torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    new_tokens = len(batch_input_ids) * max_new_tokens
+    return elapsed, new_tokens
+
+
+def benchmark_batch(runner, batch_input_ids, args, end_id: int, pad_id: int):
+    for _ in range(args.warmup):
+        measure_throughput(runner, batch_input_ids, min(8, args.max_new_tokens), end_id, pad_id)
+
+    ttft_list, latency_list, tokps_list = [], [], []
+    for _ in range(args.runs):
+        ttft = measure_ttft(runner, batch_input_ids, end_id, pad_id)
+        lat, new_tokens = measure_throughput(runner, batch_input_ids, args.max_new_tokens, end_id, pad_id)
+        ttft_list.append(ttft)
+        latency_list.append(lat)
+        tokps_list.append(new_tokens / lat if lat > 0 else 0)
+
+    avg_ttft = sum(ttft_list) / len(ttft_list)
+    avg_lat = sum(latency_list) / len(latency_list)
+    avg_tokps = sum(tokps_list) / len(tokps_list)
+    return avg_ttft, avg_lat, avg_tokps, get_gpu_mem_mb()
 
 
 def main():
@@ -40,50 +91,19 @@ def main():
 
     prompts = load_prompts(args.prompts)
     batch_sizes = parse_batch_sizes(args.batch_size)
-
-    tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True, trust_remote_code=True)
-    tokenizer.padding_side = "left"
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
+    tokenizer = load_tokenizer(args.model_id)
     runner = ModelRunner.from_dir(args.engine_dir)
+
     print(f"TensorRT-LLM | model={args.model_id} | dtype={args.dtype}")
     print(f"Engine: {args.engine_dir}")
     print("-" * 80)
 
     writer = CsvWriter(args.out_csv)
+    end_id, pad_id = tokenizer.eos_token_id, tokenizer.pad_token_id
 
     for bs in batch_sizes:
-        batch = build_batch(prompts, bs)
-        inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
-        input_ids = inputs["input_ids"].cuda()
-        batch_input_ids = [input_ids[i].contiguous() for i in range(input_ids.size(0))]
-
-        for _ in range(args.warmup):
-            trt_generate(runner, batch_input_ids, min(8, args.max_new_tokens), tokenizer.eos_token_id, tokenizer.pad_token_id)
-
-        ttft_list, latency_list, tokps_list = [], [], []
-
-        for _ in range(args.runs):
-            torch.cuda.synchronize()
-            t0 = time.perf_counter()
-            trt_generate(runner, batch_input_ids, 1, tokenizer.eos_token_id, tokenizer.pad_token_id)
-            torch.cuda.synchronize()
-            ttft_list.append(time.perf_counter() - t0)
-
-            torch.cuda.synchronize()
-            s0 = time.perf_counter()
-            trt_generate(runner, batch_input_ids, args.max_new_tokens, tokenizer.eos_token_id, tokenizer.pad_token_id)
-            torch.cuda.synchronize()
-            lat = time.perf_counter() - s0
-            latency_list.append(lat)
-            tokps_list.append((bs * args.max_new_tokens) / lat if lat > 0 else 0)
-
-        avg_ttft = sum(ttft_list) / len(ttft_list)
-        avg_lat = sum(latency_list) / len(latency_list)
-        avg_tokps = sum(tokps_list) / len(tokps_list)
-        gpu_mem = get_gpu_mem_mb()
-
+        batch_input_ids = tokenize_batch(tokenizer, prompts, bs)
+        avg_ttft, avg_lat, avg_tokps, gpu_mem = benchmark_batch(runner, batch_input_ids, args, end_id, pad_id)
         print(f"[bs={bs}] ttft={avg_ttft:.4f}s  lat={avg_lat:.4f}s  tok/s={avg_tokps:.1f}  gpu={gpu_mem:.0f}MB")
         writer.write(args.backend, args.model_id, args.dtype, bs, avg_ttft, avg_lat, avg_tokps, gpu_mem)
 
@@ -93,4 +113,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"Error: {e}")

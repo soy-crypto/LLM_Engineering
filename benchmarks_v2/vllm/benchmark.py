@@ -25,7 +25,17 @@ def get_args():
     return parser.parse_args()
 
 
-def measure_ttft(llm: LLM, batch):
+def load_model(args) -> LLM:
+    return LLM(
+        model=args.model,
+        dtype=args.dtype,
+        gpu_memory_utilization=args.gpu_mem_util,
+        enforce_eager=args.enforce_eager,
+        tensor_parallel_size=1,
+    )
+
+
+def measure_ttft(llm: LLM, batch) -> float:
     params = SamplingParams(max_tokens=1, temperature=0.0)
     torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -45,38 +55,38 @@ def measure_throughput(llm: LLM, batch, max_tokens: int):
     return elapsed, new_tokens
 
 
+def benchmark_batch(llm, batch, args):
+    for _ in range(args.warmup):
+        measure_throughput(llm, batch, min(16, args.max_new_tokens))
+
+    ttft_list, latency_list, tokps_list = [], [], []
+    for _ in range(args.runs):
+        ttft = measure_ttft(llm, batch)
+        lat, new_tokens = measure_throughput(llm, batch, args.max_new_tokens)
+        ttft_list.append(ttft)
+        latency_list.append(lat)
+        tokps_list.append(new_tokens / lat if lat > 0 else 0)
+
+    avg_ttft = sum(ttft_list) / len(ttft_list)
+    avg_lat = sum(latency_list) / len(latency_list)
+    avg_tokps = sum(tokps_list) / len(tokps_list)
+    return avg_ttft, avg_lat, avg_tokps, get_gpu_mem_mb()
+
+
 def main():
     args = get_args()
-
     prompts = load_prompts(args.prompts)
     batch_sizes = parse_batch_sizes(args.batch_size)
+    llm = load_model(args)
 
     print(f"vLLM | model={args.model} | dtype={args.dtype}")
     print("-" * 80)
 
-    llm = LLM(model=args.model, dtype=args.dtype, gpu_memory_utilization=args.gpu_mem_util, enforce_eager=args.enforce_eager, tensor_parallel_size=1)
     writer = CsvWriter(args.out_csv)
 
     for bs in batch_sizes:
         batch = build_batch(prompts, bs)
-
-        for _ in range(args.warmup):
-            measure_throughput(llm, batch, min(16, args.max_new_tokens))
-
-        ttft_list, latency_list, tokps_list = [], [], []
-
-        for _ in range(args.runs):
-            ttft = measure_ttft(llm, batch)
-            lat, new_tokens = measure_throughput(llm, batch, args.max_new_tokens)
-            ttft_list.append(ttft)
-            latency_list.append(lat)
-            tokps_list.append(new_tokens / lat if lat > 0 else 0)
-
-        avg_ttft = sum(ttft_list) / len(ttft_list)
-        avg_lat = sum(latency_list) / len(latency_list)
-        avg_tokps = sum(tokps_list) / len(tokps_list)
-        gpu_mem = get_gpu_mem_mb()
-
+        avg_ttft, avg_lat, avg_tokps, gpu_mem = benchmark_batch(llm, batch, args)
         print(f"[bs={bs}] ttft={avg_ttft:.4f}s  lat={avg_lat:.4f}s  tok/s={avg_tokps:.1f}  gpu={gpu_mem:.0f}MB")
         writer.write(args.backend, args.model, args.dtype, bs, avg_ttft, avg_lat, avg_tokps, gpu_mem)
 

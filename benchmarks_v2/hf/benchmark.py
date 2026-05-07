@@ -34,18 +34,18 @@ def set_seed(seed: int, device: str):
         torch.cuda.manual_seed_all(seed)
 
 
-def load_model(model_name: str, dtype_str: str, device: str):
+def resolve_dtype(dtype_str: str, device: str):
     if dtype_str == "auto":
         if device == "cuda":
-            torch_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-        else:
-            torch_dtype = torch.float32
-    else:
-        dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
-        torch_dtype = dtype_map[dtype_str]
-
+            return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        return torch.float32
     if device == "cpu":
-        torch_dtype = torch.float32
+        return torch.float32
+    return {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype_str]
+
+
+def load_model(model_name: str, dtype_str: str, device: str):
+    torch_dtype = resolve_dtype(dtype_str, device)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, trust_remote_code=True)
     tokenizer.padding_side = "left"
@@ -74,6 +74,12 @@ def build_params(inputs: Dict[str, Any], args, tokenizer) -> Dict[str, Any]:
     if args.do_sample:
         params.update(dict(temperature=args.temperature, top_p=args.top_p))
     return params
+
+
+def tokenize_batch(tokenizer, prompts, batch_size: int, device: str) -> Dict[str, Any]:
+    batch = build_batch(prompts, batch_size)
+    tokens = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+    return {k: v.to(device) for k, v in tokens.items()}
 
 
 @torch.inference_mode()
@@ -105,6 +111,25 @@ def measure(
     return elapsed, output_tokens, new_tokens
 
 
+def benchmark_batch(model, params, args, device: str):
+    for _ in range(args.warmup):
+        measure(model, params, device)
+
+    ttft_list, latency_list, new_tokens_list = [], [], []
+    for _ in range(args.runs):
+        ttft, _, _ = measure(model, params, device, max_new_token_override=1)
+        lat, _, new_tokens = measure(model, params, device)
+        ttft_list.append(ttft)
+        latency_list.append(lat)
+        new_tokens_list.append(new_tokens)
+
+    avg_ttft = sum(ttft_list) / len(ttft_list)
+    avg_lat = sum(latency_list) / len(latency_list)
+    avg_new = sum(new_tokens_list) / len(new_tokens_list)
+    tokps_new = avg_new / avg_lat if avg_lat > 0 else 0
+    return avg_ttft, avg_lat, tokps_new, get_gpu_mem_mb()
+
+
 def main():
     args = get_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -112,7 +137,6 @@ def main():
     set_seed(args.seed, device)
     prompts = load_prompts(args.prompts)
     batch_sizes = parse_batch_sizes(args.batch_size)
-
     model, tokenizer, torch_dtype = load_model(args.model, args.dtype, device)
     dtype_label = str(torch_dtype).split(".")[-1]
 
@@ -123,29 +147,9 @@ def main():
     writer = CsvWriter(args.out_csv)
 
     for bs in batch_sizes:
-        batch = build_batch(prompts, bs)
-        tokens = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
-        inputs = {k: v.to(device) for k, v in tokens.items()}
+        inputs = tokenize_batch(tokenizer, prompts, bs, device)
         params = build_params(inputs, args, tokenizer)
-
-        for _ in range(args.warmup):
-            measure(model, params, device)
-
-        ttft_list, latency_list, new_tokens_list = [], [], []
-
-        for _ in range(args.runs):
-            ttft, _, _ = measure(model, params, device, max_new_token_override=1)
-            lat, _, new_tokens = measure(model, params, device)
-            ttft_list.append(ttft)
-            latency_list.append(lat)
-            new_tokens_list.append(new_tokens)
-
-        avg_ttft = sum(ttft_list) / len(ttft_list)
-        avg_lat = sum(latency_list) / len(latency_list)
-        avg_new = sum(new_tokens_list) / len(new_tokens_list)
-        tokps_new = avg_new / avg_lat if avg_lat > 0 else 0
-        gpu_mem = get_gpu_mem_mb()
-
+        avg_ttft, avg_lat, tokps_new, gpu_mem = benchmark_batch(model, params, args, device)
         print(
             f"[bs={bs}] ttft={avg_ttft:.4f}s  lat={avg_lat:.4f}s  "
             f"tok/s(new)={tokps_new:.2f}  gpu={gpu_mem:.0f}MB"
